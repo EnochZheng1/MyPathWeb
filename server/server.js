@@ -18,13 +18,23 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('Successfully connected to MongoDB Atlas!'))
   .catch(err => console.error('MongoDB connection error:', err));
 
+const DiscoveredSchema = new mongoose.Schema({
+    interests: { type: [String], default: [] },
+    strengths: { type: Array, default: [] },
+    goals: { type: [String], default: [] },
+    improvements: { type: Array, default: [] }
+}, { _id: false });
+
 const ProfileSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   name: { type: String, required: true },
   password: { type: String, required: true },
   lastUpdated: { type: Date, default: Date.now },
   questionnaire: { type: Array, default: [] },
-  discovered: { type: Object, default: { interests: [], strengths: [], goals: [] } },
+  discovered: { 
+    type: DiscoveredSchema, 
+    default: () => ({}) 
+  },
   tracker: {
     sat: {
       current: { type: Number, default: null },
@@ -40,6 +50,20 @@ const ProfileSchema = new mongoose.Schema({
         name: { type: String },
         result: { type: String }
     }],
+  },
+  schedule: {
+    lastGenerated: { type: Date },
+    // Both checklist and catchUp will store an array of task objects
+    checklist: [{
+      id: { type: String, required: true },
+      text: { type: String, required: true },
+      status: { type: String, default: 'incomplete' } // 'incomplete' or 'complete'
+    }],
+    catchUp: [{
+      id: { type: String, required: true },
+      text: { type: String, required: true },
+      status: { type: String, default: 'incomplete' }
+    }]
   },
   collegeList: {
       reach: { type: Array, default: [] },
@@ -81,6 +105,33 @@ const generateWhyReasons = async (profileSummary, schoolName, userId) => {
       difyBody
   );
   return JSON.parse(aiData.data.outputs.reasoning).reasons || [];
+};
+
+const generateAiInsight = async (profile, apiKey, outputKey) => {
+  const profileSummary = profile.profileSummary || await generateProfileSummary(profile);
+  if (!profile.profileSummary) {
+    profile.profileSummary = profileSummary; // Save summary if it was just generated
+  }
+
+  const difyBody = {
+    inputs: { "profile": profileSummary },
+    response_mode: 'blocking',
+    user: profile.userId,
+  };
+
+  const aiData = await callDifyWorkflow(
+    process.env.DIFY_WORKFLOW_URL,
+    apiKey,
+    difyBody
+  );
+
+  console.log(`[DIFY RESPONSE for ${outputKey}]`, JSON.stringify(aiData, null, 2));
+  
+  const result = aiData.data.outputs[outputKey];
+  if (!Array.isArray(result)) {
+      throw new Error(`AI output '${outputKey}' was not a valid array.`);
+  }
+  return result;
 };
 
 // --- API Routes ---
@@ -249,6 +300,284 @@ app.get('/api/profile/:userId/answers', async (req, res) => {
   } catch (error) {
     console.error(`[ERROR] Error fetching formatted answers for ${userId}:`, error);
     res.status(500).json({ message: 'Error fetching formatted answers', error });
+  }
+});
+
+app.post('/api/colleges/generate', async (req, res) => {
+  const { userId } = req.body;
+  console.log(`--- Received request to POST /api/colleges/generate for userId: ${userId} ---`);
+  if (!userId) {
+    console.log('[FAIL] User ID was not provided in the request body.');
+    return res.status(400).json({ message: 'User ID is required.' });
+  }
+
+  try {
+    // 1. Fetch the user's full profile from the database
+    console.log(`[INFO] Fetching profile for userId: ${userId}...`);
+    const profile = await Profile.findOne({ userId: userId });
+    if (!profile) {
+      console.log(`[FAIL] Profile not found for userId: ${userId}.`);
+      return res.status(404).json({ message: "Profile not found." });
+    }
+    console.log('[SUCCESS] Profile fetched successfully.');
+    
+    // 2. Generate a fresh profile summary from the latest data
+    console.log('[INFO] Generating a new AI profile summary...');
+    const profileSummary = await generateProfileSummary(profile);
+    
+    // 3. Save the newly generated summary back to the profile for future use.
+    profile.profileSummary = profileSummary;
+    await profile.save();
+    console.log(`[SUCCESS] New summary generated and saved for user: ${userId}`);
+    
+    console.log("---- Using Profile Summary for Dify ----\n", profileSummary);
+
+    // 4. Construct the body for the Dify workflow
+    const difyBody = {
+        inputs: {
+            "profile": profileSummary 
+        },
+        response_mode: 'blocking',
+        user: process.env.DIFY_USER // Using the user ID from your .env for Dify logs
+    };
+
+    // 5. Call the Dify service for the college list
+    console.log('[INFO] Sending request to Dify workflow for college list...');
+    const aiData = await callDifyWorkflow(
+        process.env.DIFY_WORKFLOW_URL,
+        process.env.COLLEGE_LIST_KEY, // The API key specific to your college list workflow
+        difyBody
+    );
+    console.log('[SUCCESS] Received response from Dify.');
+
+    // 6. Parse the JSON string from Dify's response
+    const allColleges = aiData.data.outputs.CollegeList;
+
+    if (!Array.isArray(allColleges)) {
+        console.error("[ERROR] Dify output for CollegeList was not an array.", allColleges);
+        throw new Error("Received invalid data format from AI service.");
+    }
+
+    const categorizedList = {
+      reach: allColleges.filter(c => c.category === 'Reach'),
+      target: allColleges.filter(c => c.category === 'Target'),
+      likely: allColleges.filter(c => c.category === 'Safety'), // Dify might use 'Safety'
+    };
+
+    // 7. Save the new list to the user's profile
+    profile.collegeList = {
+        ...categorizedList,
+        lastGenerated: new Date()
+    };
+    await profile.save();
+
+    console.log(`[SUCCESS] Sending categorized college list to user: ${userId}`);
+    res.json(categorizedList);
+
+  } catch (error) {
+    console.error("[ERROR] College List Generation Failed:", error.message);
+    res.status(500).json({ message: 'Error generating college list.' });
+  }
+});
+
+app.post('/api/strategies/generate', async (req, res) => {
+  const { userId } = req.body;
+  console.log(`--- Received request to POST /api/strategies/generate for userId: ${userId} ---`);
+  if (!userId) {
+    return res.status(400).json({ message: 'User ID is required.' });
+  }
+
+  try {
+    const profile = await Profile.findOne({ userId });
+    if (!profile || !profile.collegeList || !profile.profileSummary) {
+      return res.status(404).json({ message: "A profile with a college list and summary must exist before generating strategies." });
+    }
+
+    // 1. Format the college list into a simple string for the Dify prompt.
+    let collegeListString = "Reach Schools:\n";
+    profile.collegeList.reach.forEach(c => { collegeListString += `- ${c.school}\n`});
+    collegeListString += "\nTarget Schools:\n";
+    profile.collegeList.target.forEach(c => { collegeListString += `- ${c.school}\n`});
+    collegeListString += "\nLikely Schools:\n";
+    profile.collegeList.likely.forEach(c => { collegeListString += `- ${c.school}\n`});
+
+    // 2. Construct the body for the Dify workflow.
+    const difyBody = {
+        inputs: {
+            "profile": profile.profileSummary,
+            "college_list": collegeListString
+        },
+        response_mode: 'blocking',
+        user: userId
+    };
+
+    // 3. Call the Dify workflow using the specific API key for strategies.
+    const aiData = await callDifyWorkflow(
+      process.env.DIFY_WORKFLOW_URL,
+      process.env.STRATEGIES_KEY,
+      difyBody
+    );
+    
+    // 4. Parse the JSON string from Dify's response.
+    // Ensure the output key in your Dify workflow is named "answer".
+    const strategies = aiData.data.outputs.strategy; 
+
+    // 5. Save the new strategies to the user's profile.
+    profile.applicationStrategies = strategies;
+    await profile.save();
+    console.log(`[SUCCESS] Saved new application strategies for user: ${userId}`);
+
+    // 6. Send the newly generated strategies back to the frontend.
+    res.json(strategies);
+
+  } catch (error) {
+    console.error("[ERROR] Strategies Generation Failed:", error.message);
+    res.status(500).json({ message: 'Error generating application strategies.' });
+  }
+});
+
+// POST route to generate and fetch strengths
+app.post('/api/profile/:userId/analyze/strengths', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile) return res.status(404).json({ message: 'Profile not found' });
+        
+        const strengths = await generateAiInsight(profile, process.env.PROFILE_STRENGTHS_KEY, 'strengths');
+        
+        // Save the text of the strengths to the profile for future reference
+        profile.discovered.strengths = strengths;
+        profile.markModified('discovered');
+        await profile.save();
+        console.log(`[SUCCESS] Saved new strengths for user: ${userId}`);
+        
+        res.json(strengths);
+    } catch (error) {
+        res.status(500).json({ message: 'Error generating strengths', error: error.message });
+    }
+});
+
+// POST route to generate and fetch improvements
+app.post('/api/profile/:userId/analyze/improvements', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const profile = await Profile.findOne({ userId });
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+
+    const improvements = await generateAiInsight(profile, process.env.PROFILE_IMPROVEMENTS_KEY, 'improvements');
+    
+     profile.discovered.improvements = improvements;
+     profile.markModified('discovered');
+     await profile.save();
+     console.log(`[SUCCESS] Saved new improvements for user: ${userId}`);
+    
+    res.json(improvements);
+  } catch (error) {
+    res.status(500).json({ message: 'Error generating improvements', error: error.message });
+  }
+});
+
+// GET existing strengths from the database
+app.get('/api/profile/:userId/strengths', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const profile = await Profile.findOne({ userId });
+    // Check if the profile and the specific data exist and are not empty
+    if (profile && profile.discovered && profile.discovered.strengths && profile.discovered.strengths.length > 0) {
+      res.json(profile.discovered.strengths);
+    } else {
+      // If no data is found, send a 404 so the frontend knows to generate it
+      res.status(404).json({ message: 'No saved strengths found.' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching strengths', error: error.message });
+  }
+});
+
+// GET existing improvements from the database
+app.get('/api/profile/:userId/improvements', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const profile = await Profile.findOne({ userId });
+    // Check if the profile and the specific data exist and are not empty
+    if (profile && profile.discovered && profile.discovered.improvements && profile.discovered.improvements.length > 0) {
+      res.json(profile.discovered.improvements);
+    } else {
+      // If no data is found, send a 404
+      res.status(404).json({ message: 'No saved improvements found.' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching improvements', error: error.message });
+  }
+});
+
+app.get('/api/profile/:userId/schedule', async (req, res) => {
+  const { userId } = req.params;
+  try{
+    const profile = await Profile.findOne({ userId });
+    if (!profile){
+      return res.status(404).json({ message: 'Profile not found' });
+    }
+    const twoWeeksAgo = new Date(Date.now() - 14 * 24* 60 * 60 * 1000);
+    if (profile.schedule && profile.schedule.lastGenerated && profile.schedule.lastGenerated > twoWeeksAgo){
+      console.log(`[INFO] Returning saved schedule for user: ${userId}`);
+      return res.json(profile.schedule);
+    }
+
+    console.log(`[INFO] Generating new schedule for user: ${userId}`);
+
+    if (!profile.profileSummary || !profile.collegeList || profile.collegeList.reach.length === 0) {
+        return res.status(400).json({ message: "Profile summary and college list must be generated before a schedule can be created." });
+    }
+
+    let completedTaskString = "None";
+    if (profile.schedule && (profile.schedule.checklist.length > 0 || profile.schedule.catchUp.length > 0)){
+      const completed = [
+        ...profile.schedule.checklist,
+        ...profile.schedule.catchUp
+      ].filter(task => task.status === 'complete').map(task => `- ${task.text}`).join('\n');
+
+      if (completed) {
+        completedTaskString = completed;
+      }
+    }
+
+    const collegeListString = "Reach: " + profile.collegeList.reach.map(c => c.school).join(', ') + 
+                            "\nTarget: " + profile.collegeList.target.map(c => c.school).join(', ') +
+                            "\nLikely: " + profile.collegeList.likely.map(c => c.school).join(', ');
+
+    const difyBody = {
+      inputs: {
+        "current_date": new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
+        "profile": profile.profileSummary,
+        "college_list": collegeListString,
+        "completed_tasks": completedTaskString
+      },
+      response_mode: 'blocking',
+      user: userId,
+    };
+
+    const aiData = await callDifyWorkflow(
+      process.env.DIFY_WORKFLOW_URL,
+      process.env.SCHEDULE_GENERATION_KEY,
+      difyBody
+    );
+
+    const newSchedule = aiData.data.outputs.result; 
+
+    if(!newSchedule) {
+        throw new Error("Invalid format received from schedule generation AI.");
+    }
+    
+    newSchedule.lastGenerated = new Date();
+
+    profile.schedule = newSchedule;
+    await profile.save();
+
+    res.json(newSchedule);
+  } catch (error) {
+    console.error('[ERROR] Schedule generation failed:', error);
+    res.status(500).json({ message: 'Error generating schedule' });
   }
 });
 
