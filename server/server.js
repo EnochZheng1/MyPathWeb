@@ -51,13 +51,13 @@ const ProfileSchema = new mongoose.Schema({
         result: { type: String }
     }],
   },
+  completedTasks: { type: [String], default: [] },
   schedule: {
     lastGenerated: { type: Date },
-    // Both checklist and catchUp will store an array of task objects
     checklist: [{
       id: { type: String, required: true },
       text: { type: String, required: true },
-      status: { type: String, default: 'incomplete' } // 'incomplete' or 'complete'
+      status: { type: String, default: 'incomplete' }
     }],
     catchUp: [{
       id: { type: String, required: true },
@@ -519,8 +519,9 @@ app.get('/api/profile/:userId/schedule', async (req, res) => {
       return res.status(404).json({ message: 'Profile not found' });
     }
     const twoWeeksAgo = new Date(Date.now() - 14 * 24* 60 * 60 * 1000);
-    if (profile.schedule && profile.schedule.lastGenerated && profile.schedule.lastGenerated > twoWeeksAgo){
-      console.log(`[INFO] Returning saved schedule for user: ${userId}`);
+    const scheduleExists = profile.schedule && profile.schedule.lastGenerated;
+    if (scheduleExists && profile.schedule.lastGenerated > twoWeeksAgo && profile.schedule.checklist.length > 0) {
+      console.log(`[INFO] Returning fresh schedule for user: ${userId}`);
       return res.json(profile.schedule);
     }
 
@@ -530,28 +531,27 @@ app.get('/api/profile/:userId/schedule', async (req, res) => {
         return res.status(400).json({ message: "Profile summary and college list must be generated before a schedule can be created." });
     }
 
-    let completedTaskString = "None";
-    if (profile.schedule && (profile.schedule.checklist.length > 0 || profile.schedule.catchUp.length > 0)){
-      const completed = [
+    if (scheduleExists) {
+      const oldTasks = [
         ...profile.schedule.checklist,
         ...profile.schedule.catchUp
-      ].filter(task => task.status === 'complete').map(task => `- ${task.text}`).join('\n');
-
-      if (completed) {
-        completedTaskString = completed;
-      }
+      ].map(task => task.text);
+      
+      profile.completedTasks.push(...oldTasks);
     }
 
     const collegeListString = "Reach: " + profile.collegeList.reach.map(c => c.school).join(', ') + 
                             "\nTarget: " + profile.collegeList.target.map(c => c.school).join(', ') +
                             "\nLikely: " + profile.collegeList.likely.map(c => c.school).join(', ');
 
+    const completedTasksString = profile.completedTasks.join('\n- ');
+
     const difyBody = {
       inputs: {
         "current_date": new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
         "profile": profile.profileSummary,
         "college_list": collegeListString,
-        "completed_tasks": completedTaskString
+        "completed_tasks": completedTasksString
       },
       response_mode: 'blocking',
       user: userId,
@@ -563,7 +563,15 @@ app.get('/api/profile/:userId/schedule', async (req, res) => {
       difyBody
     );
 
-    const newSchedule = aiData.data.outputs.result; 
+    const newMasterTasks = aiData.data.outputs.result.map(task => ({ ...task, status: 'incomplete' }));
+
+    const newSchedule = {
+      lastGenerated: new Date(),
+      checklist: newMasterTasks,
+      catchUp: [] // The catchUp list is now cleared on every regeneration cycle
+    };
+
+    profile.schedule = newSchedule;
 
     if(!newSchedule) {
         throw new Error("Invalid format received from schedule generation AI.");
