@@ -76,6 +76,11 @@ const ProfileSchema = new mongoose.Schema({
     earlyDecision: { type:Array, default:[] },
     earlyAction: { type:Array, default:[] },
     strengthsToHighlight: { type: Object, default: {} }
+  },
+  essaysAndActivities: {
+    commonApp: { type: Object, default: {} },
+    ucQuestions: { type: Object, default: {} },
+    activities: { type: Array, default: [] }
   }
 }, { timestamps: true });
 
@@ -284,11 +289,15 @@ app.get('/api/profile/:userId/answers', async (req, res) => {
     const answersForUI = {
       priorities: {},
       interests: {},
-      aboutMe: {}
+      aboutMe: {},
+      activities: []
     };
 
     profile.questionnaire.forEach(item => {
-      if (answersForUI[item.category]) {
+      if (item.category === 'activities'){
+        answersForUI.activities.push(item.answer)
+      }
+      else if (answersForUI[item.category]) {
         // The answer is retrieved directly as a number or string
         answersForUI[item.category][item.id] = item.answer;
       }
@@ -586,6 +595,191 @@ app.get('/api/profile/:userId/schedule', async (req, res) => {
   } catch (error) {
     console.error('[ERROR] Schedule generation failed:', error);
     res.status(500).json({ message: 'Error generating schedule' });
+  }
+});
+
+app.post('/api/profile/:userId/essays/brainstorm', async (req, res) => {
+  const { userId } = req.params;
+  const { prompt, promptType } = req.body;
+
+  if (!prompt || !promptType || !prompt.id || !prompt.details){
+    return res.status(400).json({ message: 'A valid prompt object and promptType are required.' });
+  }
+
+  try {
+    const profile = await Profile.findOne({ userId });
+    if (!profile || !profile.profileSummary) {
+      return res.status(404).json({ message: 'Profile with summary not found.' });
+    }
+
+    const difyBody = {
+      inputs: {
+        "profile": profile.profileSummary,
+        "prompt": prompt.details
+      },
+      response_mode: 'blocking',
+      user: userId
+    };
+
+    const aiData = await callDifyWorkflow(
+      process.env.DIFY_WORKFLOW_URL,
+      process.env.ESSAY_BRAINSTORM_KEY,
+      difyBody
+    );
+
+    if (!aiData || !aiData.data || !aiData.data.outputs || !Array.isArray(aiData.data.outputs.ideas)) {
+      console.error("[ERROR] Invalid response structure from Dify for essay brainstorming:", aiData);
+      throw new Error("Received invalid data from the AI brainstorming service.");
+    }
+
+    const brainstormingIdeas = aiData.data.outputs.ideas;
+
+    if (!profile.essaysAndActivities) {
+        profile.essaysAndActivities = {};
+    }
+    if (!profile.essaysAndActivities[promptType]) {
+        profile.essaysAndActivities[promptType] = {};
+    }
+
+    profile.essaysAndActivities[promptType][prompt.id] = brainstormingIdeas;
+
+    profile.markModified('essaysAndActivities');
+    await profile.save();
+
+    console.log(`[SUCCESS] Saved brainstorming ideas for prompt ${prompt.id} for user ${userId}`);
+    res.json(brainstormingIdeas);
+  } catch (error) {
+    console.error('[ERROR] Essay brainstorming failed:', error);
+    res.status(500).json({ message: 'Error generating essay ideas.' });
+  }
+});
+
+app.post('/api/profile/:userId/activities/improve', async (req, res) => {
+  const { userId } = req.params;
+  const { activityId, activityDescription } = req.body;
+
+  if (!activityId || !activityDescription) {
+    return res.status(400).json({ message: 'activityId and activityDescription are required.' });
+  }
+
+  try {
+    const profile = await Profile.findOne({ userId });
+    if (!profile) return res.status(404).json({ message: 'Profile not found.' });
+
+    let activityToUpdate = null;
+    let activityIndex = -1;
+
+    for (let i = 0; i < profile.questionnaire.length; i++){
+      if (profile.questionnaire[i].answer?.id === activityId) {
+        activityToUpdate = profile.questionnaire[i].answer;
+        activityIndex = i;
+        break;
+      }
+    }
+
+    if (!activityToUpdate){
+      console.log(`[FAIL] Activity with ID ${activityId} not found in questionnaire.`);
+      return res.status(404).json({ message: `Activity with ID ${activityId} not found.` });
+    }
+
+    const difyBody = {
+      inputs: {
+        "profile": profile.profileSummary,
+        "activity_description": activityDescription
+      },
+      response_mode: 'blocking',
+      user: userId
+    };
+
+    const aiData = await callDifyWorkflow(
+      process.env.DIFY_WORKFLOW_URL,
+      process.env.ACTIVITIES_IMPROVER_KEY,
+      difyBody
+    );
+
+    if (!aiData || !aiData.data || !aiData.data.outputs || typeof aiData.data.outputs.improved_description !== 'string') {
+        console.error("[ERROR] Invalid response structure from Dify for activity improvement:", aiData);
+        throw new Error("Received invalid data from the AI improvement service.");
+    }
+
+    const improvedDescription = aiData.data.outputs.improved_description;
+
+    // Update the description of the found activity
+    profile.questionnaire[activityIndex].answer.description = improvedDescription;
+    
+    // Mark the nested path as modified
+    profile.markModified('questionnaire');
+    await profile.save();
+    
+    console.log(`[SUCCESS] Improved and saved activity ${activityId} for user ${userId}`);
+    res.json({ improvedDescription });
+
+  } catch (error) {
+    console.error('[ERROR] Activity improvement failed:', error);
+    res.status(500).json({ message: 'Error improving activity description.' });
+  }
+});
+
+app.post('/api/chat/message', async (req, res) => {
+  let { userId, message, sessionId } = req.body;
+  console.log(`--- Received chat message for user: ${userId}, session: ${sessionId || 'new'} ---`);
+
+  if (!userId || !message) {
+    return res.status(400).json({ message: 'User ID and message are required.' });
+  }
+
+  try {
+    const userMessage = { id: new mongoose.Types.ObjectId().toString(), text: message, sender: 'user' };
+    console.log('[INFO] Calling Dify Chat Workflow...');
+    const difyBody = {
+      inputs: {
+      },
+      query:message,
+      response_mode: 'blocking',
+      user: userId
+    };
+
+    const aiData = await callDifyWorkflow(
+      process.env.DIFY_CHATFLOW_URL,
+      process.env.COUNSELOR_KEY,
+      difyBody
+    );
+
+    console.log("[INFO] Received raw response from Dify service.");
+    console.log("Raw Dify Output:", JSON.stringify(aiData, null, 2)); 
+    
+    const responseJson = aiData.answer;
+    const aiReplyText = responseJson;
+    console.log(`[SUCCESS] Received AI reply: "${aiReplyText}"`);
+
+    const hedgeMessage = { id: new mongoose.Types.ObjectId().toString(), text: aiReplyText, sender: 'hedge' };
+
+    let sessionToUpdate;
+    if (sessionId){
+      sessionToUpdate = await ChatSession.findByIdAndUpdate(
+        sessionId,
+        {
+          $push: { messages: { $each: [userMessage, hedgeMessage] } },
+          $set: { updatedAt: new Date() }
+        },
+        { new: true }
+      );
+    } else {
+      sessionToUpdate = new ChatSession({
+        userId: userId,
+        messages: [userMessage, hedgeMessage],
+      });
+      await sessionToUpdate.save();
+      sessionId = sessionToUpdate._id;
+    }
+    if (!sessionToUpdate) {
+      return res.status(404).json({ message: 'Chat session could not be found or created.' });
+    }
+
+    res.json({ reply: aiReplyText, sessionId: sessionId });
+  } catch (error) {
+    console.error("Chat API Error:", error.message);
+    res.status(500).json({ message: 'Error communicating with the chat service.' });
   }
 });
 

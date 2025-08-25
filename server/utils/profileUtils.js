@@ -42,7 +42,11 @@ const generateProfileSummary = async (profile) => {
       const questionObject = categoryQuestions.find(q => q.id === item.id);
       const questionText = questionObject ? questionObject.question : item.id; // Fallback to id if not found
 
-      profileString += `- ${questionText}: ${item.answer}\n`;
+      if (item.category === 'activities' && typeof item.answer === 'object' && item.answer !== null) {
+        profileString += `- Activity: ${item.answer.name} - Description: ${item.answer.description}\n`;
+      } else {
+        profileString += `- ${questionText}: ${item.answer}\n`;
+      }
     });
   }
 
