@@ -10,6 +10,10 @@ const MyAccountPage = () => {
     const { userId } = useUser() || { userId: 'testuser@example.com' };
     const navigate = useNavigate();
 
+    const goToCollegeList = () => navigate('/college-list');
+    const goToStrengths = () => navigate('/strengths-improvements');
+    const goToEssays = () => navigate('/essays-activities');
+
     return (
         <div className="account-page-container">
             {/* --- Main Content Area (Left Side) --- */}
@@ -48,9 +52,9 @@ const MyAccountPage = () => {
                     </div>
 
                     <div className="right-panel">
-                        <button className="report-btn">College list & Application strategy</button>
-                        <button className="report-btn">Strengths & Improvements</button>
-                        <button className="report-btn">Essay & Activities list</button>
+                        <button className="report-btn" onClick={goToCollegeList}>College list & Application strategy</button>
+                        <button className="report-btn" onClick={goToStrengths}>Strengths & Improvements</button>
+                        <button className="report-btn" onClick={goToEssays}>Essay & Activities list</button>
                     </div>
                 </div>
             </div>

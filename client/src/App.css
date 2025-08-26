@@ -474,3 +474,311 @@ textarea.form-input {
     flex-direction: column;
     gap: 15px;
 }
+
+/* === Report Page Layout (reusable for all reports) === */
+.report-page-container {
+  display: grid;
+  grid-template-columns: 1fr 450px;
+  height: 100vh;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.report-section {
+  background-color: var(--container-bg);
+  padding: 30px;
+  border-radius: 16px;
+  margin-top: 2rem;
+}
+
+.report-section h2 {
+  margin-top: 0;
+  margin-bottom: 2rem;
+  font-size: 1.8rem;
+}
+
+.report-section h3 {
+  font-size: 1.4rem;
+  color: var(--text-secondary);
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+/* College List Specific Styles */
+.college-list-header, .college-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.college-list-header {
+  color: var(--text-placeholder);
+  font-weight: bold;
+}
+
+.college-row {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.more-info-btn {
+  background: var(--primary-accent);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+/* === Application Plan Styles === */
+.application-plan-container {
+    margin-top: 2rem;
+}
+
+.strategy-wave {
+    margin-bottom: 1.5rem;
+}
+
+.strategy-item {
+    display: grid;
+    grid-template-columns: 80px 1fr 100px; /* Type | School | Date */
+    align-items: center;
+    gap: 20px;
+    background-color: #374151; /* A slightly lighter container color */
+    padding: 15px 20px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+}
+
+.strategy-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-weight: bold;
+    text-align: center;
+    color: white;
+}
+
+.strategy-badge.ed {
+    background-color: var(--primary-accent); /* Purple for ED */
+}
+
+.strategy-badge.ea {
+    background-color: var(--inprogress-blue); /* Blue for EA */
+}
+
+.strategy-school {
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.strategy-date {
+    text-align: right;
+    color: var(--text-secondary);
+}
+
+/* === Strengths & Improvements Page === */
+.report-subtitle {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid var(--border-color);
+}
+.report-subtitle.improvements {
+    margin-top: 50px;
+}
+
+.expandable-item {
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+}
+
+.expandable-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 10px 5px; /* Add some padding */
+    text-align: left;
+    cursor: pointer;
+    font-size: 1.25rem; /* Slightly larger font */
+    color: var(--text-secondary);
+    font-weight: bold;
+}
+
+.expandable-header:hover {
+    color: var(--text-primary);
+}
+
+.expandable-header .arrow {
+    transition: transform 0.2s ease-in-out;
+    font-size: 1.5rem;
+    font-weight: normal;
+    color: var(--text-placeholder);
+}
+
+.expandable-header .arrow.open {
+    transform: rotate(180deg);
+}
+
+.expandable-content {
+    padding: 5px 15px 15px 15px; /* Top | Right | Bottom | Left */
+    color: var(--text-secondary);
+    line-height: 1.7; /* Increased line height for readability */
+    background-color: transparent; /* Content flows naturally */
+    font-size: 1rem;
+}
+
+/* === Essay & Activities Page === */
+.essay-tab-navigation {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 30px;
+}
+.essay-tab-navigation button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    font-weight: bold;
+    padding: 15px 25px;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s;
+}
+.essay-tab-navigation button:hover {
+    color: var(--text-primary);
+}
+.essay-tab-navigation button.active {
+    color: var(--primary-accent);
+}
+.essay-tab-navigation button.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background-color: var(--primary-accent);
+    border-radius: 3px;
+}
+.tab-placeholder {
+    color: var(--text-placeholder);
+    font-style: italic;
+    padding: 20px;
+    text-align: center;
+}
+
+/* Activities Tab Styles */
+.activities-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.activity-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+.activity-info {
+    flex-grow: 1;
+}
+.activity-info h4 {
+    margin: 0 0 8px 0;
+    font-size: 1.2rem;
+}
+.activity-info p {
+    margin: 0;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+.improve-btn {
+    flex-shrink: 0; /* Prevents button from shrinking */
+    width: 150px; /* Give it a fixed width */
+}
+
+/* === Essay Prompts Tab Styles === */
+.essay-prompts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+.prompt-item {
+    padding-bottom: 30px;
+    border-bottom: 1px solid var(--border-color);
+}
+.prompt-item h4 {
+    font-size: 1.2rem;
+    color: var(--text-primary);
+    margin: 0 0 10px 0;
+}
+.prompt-item p {
+    margin: 0 0 20px 0;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+.ideas-container {
+    margin-top: 20px;
+    background-color: #2D344B;
+    padding: 20px;
+    border-radius: 8px;
+}
+.ideas-container h5 {
+    margin: 0 0 15px 0;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+.ideas-container ul {
+    padding-left: 20px;
+    margin: 0;
+}
+.ideas-container li {
+    margin-bottom: 10px;
+}
+
+/* === Supplementals Tab Styles === */
+.supplementals-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.supplemental-item {
+    display: grid;
+    grid-template-columns: 2fr 1fr 80px; /* School Name | Count | Button */
+    align-items: center;
+    gap: 20px;
+    background-color: var(--container-bg);
+    padding: 15px 25px;
+    border-radius: 12px;
+}
+
+.supplemental-school {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.supplemental-count {
+    color: var(--text-secondary);
+}
+
+.go-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 1rem;
+}

@@ -7,6 +7,9 @@ import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
 import MyAccountPage from './pages/MyAccountPage';
 import BuildMyProfilePage from './pages/BuildMyProfilePage';
+import CollegeListPage from './pages/CollegeListPage';
+import StrengthsImprovementsPage from './pages/StrengthsImprovementsPage';
+import EssayActivitiesPage from './pages/EssayActivitiesPage';
 import './App.css';
 
 function App() {
@@ -20,6 +23,9 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/account" element={<MyAccountPage />} />
           <Route path="/build-profile" element={<BuildMyProfilePage />} />
+          <Route path="/college-list" element={<CollegeListPage />} />
+          <Route path="/strengths-improvements" element={<StrengthsImprovementsPage />} />
+          <Route path="/essays-activities" element={<EssayActivitiesPage />} />
         </Routes>
       </Router>
     </UserProvider>

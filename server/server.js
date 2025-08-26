@@ -4,7 +4,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const { callDifyWorkflow } = require('./difyService');
-const { generateProfileSummary, ALL_QUESTIONS } = require('./utils/profileUtils');
+const { generateProfileSummary, ALL_QUESTIONS, COMMON_APP_PROMPTS, UC_PROMPTS } = require('./utils/profileUtils');
 const ChatSession = require('./models/ChatSession');
 require('dotenv').config();
 
@@ -226,52 +226,55 @@ app.get('/api/profile/:userId', async (req, res) => {
 // UPDATE a user's profile
 app.put('/api/profile/:userId', async (req, res) => {
   const { userId } = req.params;
-  const { questionnaire } = req.body;
-
+  const updates = req.body;
   console.log(`--- Received request to PUT /api/profile/${userId} ---`);
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
-
-  if (!questionnaire) {
-    return res.status(400).json({ message: "Missing 'questionnaire' data in request body." });
-  }
 
   try {
     const profile = await Profile.findOne({ userId: userId });
     if (!profile) {
-      console.log(`[FAIL] Profile not found for userId: ${userId}`);
       return res.status(404).json({ message: "Profile not found." });
     }
 
-    // --- Data Transformation Logic ---
-    // This transforms the processed data into the flat array structure of our schema
-    const formattedAnswers = [];
-    for (const category in questionnaire) {
-      // Loop through priorities, interests, aboutMe
-      for (const questionId in questionnaire[category]) {
-        const answerText = questionnaire[category][questionId];
-        formattedAnswers.push({
+    // A. Handle Questionnaire Updates
+    if (updates.questionnaire) {
+      const category = Object.keys(updates.questionnaire)[0];
+      const answersForCategory = updates.questionnaire[category];
+
+      // THIS IS THE KEY FIX:
+      // 1. Keep all answers that are NOT in the category we're currently updating.
+      const otherCategoryAnswers = profile.questionnaire.filter(q => q.category !== category);
+
+      // 2. Format the new answers for the current category.
+      const newAnswers = Object.entries(answersForCategory).map(([questionId, answerValue]) => {
+        const questionObj = (ALL_QUESTIONS[category] || []).find(q => q.id === questionId);
+        return {
           id: questionId,
           category: category,
-          question: questionId, // For simplicity; could be mapped to full question text
-          answer: answerText,
-        });
-      }
+          question: questionObj ? questionObj.question : questionId,
+          answer: answerValue,
+        };
+      });
+
+      // 3. Combine the old answers with the new ones, replacing the category.
+      profile.questionnaire = [...otherCategoryAnswers, ...newAnswers];
     }
-    // --- Database Update ---
-    profile.questionnaire = formattedAnswers;
+    
+    // B. Handle other updates like the tracker (this logic is good)
+    if (updates.tracker) {
+        Object.assign(profile.tracker, updates.tracker);
+    }
+
+    // C. Re-generate profile summary and save all changes
+    profile.profileSummary = await generateProfileSummary(profile);
     profile.lastUpdated = Date.now();
     
-    // You could optionally re-generate the profile summary here as well
-    // profile.profileSummary = await generateProfileSummary(profile);
-    
     await profile.save();
-
     console.log(`[SUCCESS] Profile updated for userId: ${userId}`);
     res.json({ message: 'Profile updated successfully!', profile });
 
   } catch (error) {
-    console.error(`[ERROR] Error updating profile for ${userId}:`, error);
-    res.status(500).json({ message: 'Error updating profile', error });
+    console.error(`[ERROR] Error updating profile for ${userId}:`, error.message);
+    res.status(500).json({ message: 'Error updating profile', error: error.message });
   }
 });
 
@@ -667,14 +670,24 @@ app.post('/api/profile/:userId/activities/improve', async (req, res) => {
     if (!profile) return res.status(404).json({ message: 'Profile not found.' });
 
     let activityToUpdate = null;
+    let questionnaireItemIndex = -1;
     let activityIndex = -1;
-
-    for (let i = 0; i < profile.questionnaire.length; i++){
-      if (profile.questionnaire[i].answer?.id === activityId) {
-        activityToUpdate = profile.questionnaire[i].answer;
-        activityIndex = i;
-        break;
+    const activitiesEntry = profile.questionnaire.find((item, index) => {
+      if (item.id === 'a6'){
+        questionnaireItemIndex = index;
+        return true;
       }
+      return false;
+    });
+
+    if (activitiesEntry && Array.isArray(activitiesEntry.answer)) {
+        activityToUpdate = activitiesEntry.answer.find((act, index) => {
+            if (act.id === activityId) {
+                activityIndexInAnswer = index;
+                return true;
+            }
+            return false;
+        });
     }
 
     if (!activityToUpdate){
@@ -705,7 +718,7 @@ app.post('/api/profile/:userId/activities/improve', async (req, res) => {
     const improvedDescription = aiData.data.outputs.improved_description;
 
     // Update the description of the found activity
-    profile.questionnaire[activityIndex].answer.description = improvedDescription;
+    profile.questionnaire[questionnaireItemIndex].answer[activityIndexInAnswer].description = improvedDescription;
     
     // Mark the nested path as modified
     profile.markModified('questionnaire');
@@ -781,6 +794,153 @@ app.post('/api/chat/message', async (req, res) => {
     console.error("Chat API Error:", error.message);
     res.status(500).json({ message: 'Error communicating with the chat service.' });
   }
+});
+
+app.get('/api/profile/:userId/reports', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found.' });
+        }
+
+        const hasCollegeList = profile.collegeList && profile.collegeList.reach.length > 0;
+        const hasStrategies = profile.applicationStrategies && profile.applicationStrategies.earlyDecision;
+
+        // Check if both reports have been generated and saved before
+        if (hasCollegeList && hasStrategies) {
+            console.log(`[INFO] Found saved reports for user: ${userId}`);
+            res.json({
+                collegeList: profile.collegeList,
+                strategies: profile.applicationStrategies
+            });
+        } else {
+            // If reports don't exist, send a 404 so the frontend knows to generate them
+            console.log(`[INFO] No saved reports for user: ${userId}. Frontend should generate them.`);
+            res.status(404).json({ message: 'Saved reports not found.' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching reports', error: error.message });
+    }
+});
+
+// This route provides the prompts to the frontend
+app.get('/api/essays/common-app-prompts', (req, res) => {
+    res.json(COMMON_APP_PROMPTS);
+});
+
+// This route handles the AI brainstorming
+app.post('/api/profile/:userId/essays/brainstorm', async (req, res) => {
+    const { userId } = req.params;
+    const { prompt, promptType } = req.body; // promptType will be 'commonApp', 'ucQuestions', etc.
+
+    if (!prompt || !promptType || !prompt.id || !prompt.details) {
+        return res.status(400).json({ message: 'A valid prompt object and promptType are required.' });
+    }
+
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile || !profile.profileSummary) {
+            return res.status(404).json({ message: 'Profile with summary not found.' });
+        }
+
+        const difyBody = {
+            inputs: {
+                "profile": profile.profileSummary,
+                "prompt": prompt.details
+            },
+            response_mode: 'blocking',
+            user: userId
+        };
+
+        // Make sure to add DIFY_ESSAY_BRAINSTORM_KEY to your .env file
+        const aiData = await callDifyWorkflow(
+            process.env.DIFY_WORKFLOW_URL,
+            process.env.ESSAY_BRAINSTORM_KEY,
+            difyBody
+        );
+        
+        // Assuming your Dify workflow returns an array of strings in an "ideas" output field
+        const brainstormingIdeas = aiData.data.outputs.ideas;
+
+        // Save the ideas to the correct place in the user's profile
+        if (!profile.essaysAndActivities[promptType]) {
+            profile.essaysAndActivities[promptType] = {};
+        }
+        profile.essaysAndActivities[promptType][prompt.id] = brainstormingIdeas;
+        
+        profile.markModified('essaysAndActivities');
+        await profile.save();
+
+        res.json(brainstormingIdeas);
+    } catch (error) {
+        console.error('[ERROR] Essay brainstorming failed:', error);
+        res.status(500).json({ message: 'Error generating essay ideas.' });
+    }
+});
+
+app.get('/api/profile/:userId/essays/common-app', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const profile = await Profile.findOne({ userId });
+
+        // Check if the profile and the specific data exist
+        if (profile && profile.essaysAndActivities && profile.essaysAndActivities.commonApp) {
+            res.json(profile.essaysAndActivities.commonApp);
+        } else {
+            // If no data is found, send an empty object
+            res.json({});
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching saved Common App ideas', error: error.message });
+    }
+});
+
+app.get('/api/essays/uc-prompts', (req, res) => {
+    res.json(UC_PROMPTS);
+});
+
+app.get('/api/profile/:userId/essays/uc-questions', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (profile && profile.essaysAndActivities && profile.essaysAndActivities.ucQuestions) {
+            res.json(profile.essaysAndActivities.ucQuestions);
+        } else {
+            res.json({});
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching saved UC ideas', error: error.message });
+    }
+});
+
+app.get('/api/profile/:userId/supplementals', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile || !profile.collegeList) {
+            return res.status(404).json({ message: 'College list not found.' });
+        }
+
+        // Combine all colleges from the list
+        const allColleges = [
+            ...profile.collegeList.reach,
+            ...profile.collegeList.target,
+            ...profile.collegeList.likely
+        ];
+
+        // Add mock data for the number of supplemental essays
+        const supplementalsData = allColleges.map(college => ({
+            school: college.school,
+            // In a real application, this data would come from a dedicated database
+            // For now, we'll use a placeholder
+            supplementalCount: 0
+        }));
+
+        res.json(supplementalsData);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching supplemental essay data', error: error.message });
+    }
 });
 
 app.listen(PORT, () => {

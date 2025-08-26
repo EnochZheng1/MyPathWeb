@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 const AboutMeTab = ({ savedAnswers, onSave }) => {
     const [scores, setScores] = useState({});
-    const [activities, setActivities] = useState([{ name: '', description: '' }]);
+    const [activities, setActivities] = useState([{ id: `activity-${Date.now()}`, name: '', description: '' }]);
     const navigate = useNavigate();
 
     // This useEffect is crucial for populating the form with saved data
@@ -17,7 +17,11 @@ const AboutMeTab = ({ savedAnswers, onSave }) => {
                 act: savedAnswers.a5 || ''
             });
             if (savedAnswers.a6 && savedAnswers.a6.length > 0) {
-                setActivities(savedAnswers.a6);
+                const activitiesWithIds = savedAnswers.a6.map(act => ({
+                    ...act,
+                    id: act.id || `activity-${Date.now()}-${Math.random()}` // Add an ID if it's missing
+                }));
+                setActivities(activitiesWithIds);
             }
         }
     }, [savedAnswers]); // This runs whenever the savedAnswers prop changes
@@ -33,7 +37,7 @@ const AboutMeTab = ({ savedAnswers, onSave }) => {
     };
 
     const addActivity = () => {
-        setActivities([...activities, { name: '', description: '' }]);
+        setActivities([...activities, { id: `activity-${Date.now()}`, name: '', description: '' }]);
     };
     
     const handleSave = async () => {
@@ -47,7 +51,6 @@ const AboutMeTab = ({ savedAnswers, onSave }) => {
         };
         const success = await onSave(answersToSave);
         if (success) {
-            alert("Profile Saved!");
             navigate('/account');
         }
     };
