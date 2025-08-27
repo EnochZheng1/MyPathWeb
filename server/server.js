@@ -601,62 +601,6 @@ app.get('/api/profile/:userId/schedule', async (req, res) => {
   }
 });
 
-app.post('/api/profile/:userId/essays/brainstorm', async (req, res) => {
-  const { userId } = req.params;
-  const { prompt, promptType } = req.body;
-
-  if (!prompt || !promptType || !prompt.id || !prompt.details){
-    return res.status(400).json({ message: 'A valid prompt object and promptType are required.' });
-  }
-
-  try {
-    const profile = await Profile.findOne({ userId });
-    if (!profile || !profile.profileSummary) {
-      return res.status(404).json({ message: 'Profile with summary not found.' });
-    }
-
-    const difyBody = {
-      inputs: {
-        "profile": profile.profileSummary,
-        "prompt": prompt.details
-      },
-      response_mode: 'blocking',
-      user: userId
-    };
-
-    const aiData = await callDifyWorkflow(
-      process.env.DIFY_WORKFLOW_URL,
-      process.env.ESSAY_BRAINSTORM_KEY,
-      difyBody
-    );
-
-    if (!aiData || !aiData.data || !aiData.data.outputs || !Array.isArray(aiData.data.outputs.ideas)) {
-      console.error("[ERROR] Invalid response structure from Dify for essay brainstorming:", aiData);
-      throw new Error("Received invalid data from the AI brainstorming service.");
-    }
-
-    const brainstormingIdeas = aiData.data.outputs.ideas;
-
-    if (!profile.essaysAndActivities) {
-        profile.essaysAndActivities = {};
-    }
-    if (!profile.essaysAndActivities[promptType]) {
-        profile.essaysAndActivities[promptType] = {};
-    }
-
-    profile.essaysAndActivities[promptType][prompt.id] = brainstormingIdeas;
-
-    profile.markModified('essaysAndActivities');
-    await profile.save();
-
-    console.log(`[SUCCESS] Saved brainstorming ideas for prompt ${prompt.id} for user ${userId}`);
-    res.json(brainstormingIdeas);
-  } catch (error) {
-    console.error('[ERROR] Essay brainstorming failed:', error);
-    res.status(500).json({ message: 'Error generating essay ideas.' });
-  }
-});
-
 app.post('/api/profile/:userId/activities/improve', async (req, res) => {
   const { userId } = req.params;
   const { activityId, activityDescription } = req.body;
@@ -940,6 +884,38 @@ app.get('/api/profile/:userId/supplementals', async (req, res) => {
         res.json(supplementalsData);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching supplemental essay data', error: error.message });
+    }
+});
+
+app.put('/api/profile/:userId/schedule/tasks/:taskId', async (req, res) => {
+    const { userId, taskId } = req.params;
+    const { status } = req.body; // e.g., 'completed' or 'incomplete'
+
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile || !profile.schedule) {
+            return res.status(404).json({ message: 'Profile or schedule not found.' });
+        }
+
+        // Find the task in either the checklist or catchUp list and update it
+        let taskUpdated = false;
+        ['checklist', 'catchUp'].forEach(list => {
+            const task = profile.schedule[list].find(t => t.id === taskId);
+            if (task) {
+                task.status = status;
+                taskUpdated = true;
+            }
+        });
+
+        if (taskUpdated) {
+            profile.markModified('schedule');
+            await profile.save();
+            res.json(profile.schedule);
+        } else {
+            res.status(404).json({ message: 'Task not found.' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating task status.', error: error.message });
     }
 });
 
