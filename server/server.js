@@ -919,6 +919,68 @@ app.put('/api/profile/:userId/schedule/tasks/:taskId', async (req, res) => {
     }
 });
 
+app.post('/api/colleges/why', async (req, res) => {
+    const { userId, schoolName } = req.body;
+    if (!userId || !schoolName) {
+        return res.status(400).json({ message: 'User ID and school name are required.' });
+    }
+
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile || !profile.collegeList) {
+            return res.status(404).json({ message: 'Profile with a college list is required.' });
+        }
+
+        // 1. Check if reasons already exist in the database
+        let savedReasons = null;
+        let collegeToUpdate = null;
+        let categoryPath = '';
+
+        for (const category of ['reach', 'target', 'likely']) {
+            collegeToUpdate = profile.collegeList[category].find(c => c.school === schoolName);
+            if (collegeToUpdate) {
+                categoryPath = `collegeList.${category}`;
+                if (collegeToUpdate.reasons && collegeToUpdate.reasons.length > 0) {
+                    savedReasons = collegeToUpdate.reasons;
+                }
+                break;
+            }
+        }
+
+        if (savedReasons) {
+            console.log(`[INFO] Returning cached 'Why' reasons for ${schoolName}`);
+            return res.json(savedReasons);
+        }
+
+        // 2. If no reasons were found, generate new ones
+        if (!profile.profileSummary) {
+             return res.status(400).json({ message: 'A profile summary is required to generate reasons.' });
+        }
+
+        const newReasons = await generateWhyReasons(profile.profileSummary, schoolName, userId);
+        
+        // 3. Atomically save the newly generated reasons to the correct school in the database
+        if (categoryPath && collegeToUpdate) {
+            // Find the index of the college to update
+            const collegeIndex = profile.collegeList[categoryPath.split('.')[1]].findIndex(c => c.school === schoolName);
+            
+            // Set the reasons on the specific college object
+            profile.collegeList[categoryPath.split('.')[1]][collegeIndex].reasons = newReasons;
+            
+            profile.markModified('collegeList'); // Tell Mongoose that the nested array has changed
+            await profile.save();
+            console.log(`[SUCCESS] Generated and saved new 'Why' reasons for ${schoolName}`);
+        }
+
+        // 4. Return the newly generated reasons
+        res.json(newReasons);
+
+    } catch (error) {
+        console.error(`[ERROR] Failed to process 'why' reasons for ${schoolName}:`, error);
+        res.status(500).json({ message: 'Error processing reasons for recommendation.' });
+    }
+});
+
 app.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);
 });

@@ -5,6 +5,7 @@ import apiService from '../api';
 import { useUser } from '../context/UserContext';
 import ChatPanel from '../components/ChatPanel';
 import ApplicationPlan from '../components/ApplicationPlan';
+import WhyCollegeModal from '../components/WhyCollegeModal';
 
 const CollegeListPage = () => {
     const { userId } = useUser();
@@ -12,6 +13,9 @@ const CollegeListPage = () => {
     const [collegeList, setCollegeList] = useState(null);
     const [strategies, setStrategies] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    const [modalData, setModalData] = useState({ isVisible: false, school: null, reasons: [] });
+    const [isFetchingReasons, setIsFetchingReasons] = useState(false);
 
     const generateNewData = useCallback(async () => {
         if (!userId) return;
@@ -54,12 +58,29 @@ const CollegeListPage = () => {
         loadData();
     }, [userId, generateNewData]);
 
+    const handleMoreInfo = async (college) => {
+        setIsFetchingReasons(true);
+        setModalData({ isVisible: true, school: college.school, reasons: [] });
+        try {
+            const reasons = await apiService('/colleges/why', 'POST', {
+                userId,
+                schoolName: college.school
+            });
+            setModalData({ isVisible: true, school: college.school, reasons: reasons });
+        } catch (error) {
+            alert(`Could not load details: ${error.message}`);
+            setModalData({ isVisible: false, school: null, reasons: [] }); // Close modal on error
+        } finally {
+            setIsFetchingReasons(false);
+        }
+    };
+
     const renderCollegeRow = (college, index) => (
         <div key={index} className="college-row">
             <span>{index + 1}. {college.school}</span>
             <span>{college.admission_rate || 'N/A'}</span>
             <span>{college.test_policy || 'Test Optional'}</span>
-            <button className="more-info-btn">→</button>
+            <button className="more-info-btn" onClick={() => handleMoreInfo(college)}>→</button>
         </div>
     );
 
@@ -104,6 +125,14 @@ const CollegeListPage = () => {
             <div className="chat-column">
                 <ChatPanel userId={userId} />
             </div>
+            {/* Render the Modal */}
+            <WhyCollegeModal
+                isVisible={modalData.isVisible}
+                school={modalData.school}
+                reasons={modalData.reasons}
+                isLoading={isFetchingReasons}
+                onClose={() => setModalData({ isVisible: false, school: null, reasons: [] })}
+            />
         </div>
     );
 };
