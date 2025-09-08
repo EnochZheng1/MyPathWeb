@@ -1,0 +1,56 @@
+/* Styles for the hidden PDF component */
+.pdf-container {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  padding: 20mm;
+  background-color: white;
+  color: #333;
+  width: 210mm;
+  min-height: 297mm;
+  box-sizing: border-box;
+}
+
+.pdf-header {
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid #64748B;
+  padding-bottom: 15px;
+  margin-bottom: 25px;
+}
+
+.pdf-logo { width: 50px; margin-right: 20px; }
+.header-text h1 { font-size: 24px; color: #1E293B; margin: 0; }
+.header-text h2 { font-size: 16px; color: #64748B; font-weight: normal; margin: 5px 0 0 0; }
+
+.pdf-section { margin-bottom: 25px; page-break-inside: avoid; }
+.pdf-section h3 {
+  font-size: 18px;
+  color: white;
+  background-color: #4A5568;
+  padding: 8px 12px;
+  border-radius: 5px;
+  margin-bottom: 20px; /* Increased margin */
+}
+.pdf-section h4 { font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 20px; }
+
+/* --- FIX FOR COMPRESSED TEXT --- */
+.pdf-section p, .pdf-section li {
+  line-height: 1.6; /* Increased line spacing */
+  margin-bottom: 12px; /* Increased space between paragraphs/items */
+}
+
+/* --- NEW STYLES --- */
+.summary-text { font-style: italic; color: #4A5568; }
+.snapshot-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 15px;
+    background-color: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    padding: 15px;
+    border-radius: 8px;
+}
+.subsection-title { margin-top: 25px; }
+.two-column-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.activity-item { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #64748B; }
+.activity-item p { margin: 4px 0; }
+.pdf-footer { position: absolute; bottom: 10mm; font-size: 10px; color: #999; }

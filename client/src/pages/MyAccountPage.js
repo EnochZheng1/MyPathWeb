@@ -4,11 +4,15 @@ import { useNavigate } from 'react-router-dom'; // 1. Import useNavigate
 import apiService from '../api';
 import ChatPanel from '../components/ChatPanel';
 import { useUser } from '../context/UserContext';
+import PdfReport from '../components/pdf/PdfReport';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 const MyAccountPage = () => {
     const { userId } = useUser();
     const navigate = useNavigate(); // 2. Initialize the navigate function
     const [schedule, setSchedule] = useState({ checklist: [], catchUp: [] });
+    const [profile, setProfile] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchSchedule = useCallback(async () => {
@@ -25,8 +29,31 @@ const MyAccountPage = () => {
     }, [userId]);
 
     useEffect(() => {
-        fetchSchedule();
-    }, [fetchSchedule]);
+        if (!userId) {
+            setIsLoading(false);
+            return;
+        };
+
+        const fetchAllData = async () => {
+            setIsLoading(true);
+            try {
+                // Use Promise.all to fetch all necessary data in parallel
+                const [scheduleData, profileData] = await Promise.all([
+                    apiService(`/profile/${userId}/schedule`),
+                    apiService(`/profile/${userId}`) // We need the full profile for the PDF
+                ]);
+                setSchedule(scheduleData || { checklist: [], catchUp: [] });
+                setProfile(profileData);
+            } catch (error) {
+                console.error("Could not load dashboard data:", error);
+                setSchedule({ checklist: ['Generate your college list to see your tasks!'], catchUp: [] });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchAllData();
+    }, [userId]);
 
     const handleToggleTask = async (taskId, currentStatus) => {
         const newStatus = currentStatus === 'completed' ? 'incomplete' : 'completed';
@@ -40,6 +67,47 @@ const MyAccountPage = () => {
         } catch (error) {
             alert(`Could not update task: ${error.message}`);
         }
+    };
+
+    const handleExport = () => {
+        if (!profile) {
+            alert("Profile data is still loading. Please wait a moment and try again.");
+            return;
+        }
+        const reportElement = document.getElementById('pdf-report-content');
+        if (!reportElement) return;
+
+        // Use a higher scale for better resolution
+        html2canvas(reportElement, { scale: 2 }).then(canvas => {
+            const pdf = new jsPDF('p', 'mm', 'a4'); // A4 size page
+            
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            
+            // Calculate the ratio to fit the canvas width to the PDF width
+            const ratio = pdfWidth / canvasWidth;
+            const imgHeight = canvasHeight * ratio;
+            
+            let heightLeft = imgHeight;
+            let position = 0;
+            
+            // Add the first page
+            pdf.addImage(canvas, 'PNG', 0, position, pdfWidth, imgHeight);
+            heightLeft -= pdfHeight;
+            
+            // Add new pages as long as there is content left
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight; // Move the position up
+                pdf.addPage();
+                pdf.addImage(canvas, 'PNG', 0, position, pdfWidth, imgHeight);
+                heightLeft -= pdfHeight;
+            }
+            
+            pdf.save(`MyPath-Report-${profile.name}.pdf`);
+        });
     };
 
     // 3. Define the navigation handler functions
@@ -62,6 +130,12 @@ const MyAccountPage = () => {
     );
 
     return (
+        <>
+        {/* Render the hidden PDF component so it can be captured */}
+        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+            <PdfReport profile={profile} />
+        </div>
+
         <div className="account-page-container">
             <div className="main-content">
                 <div className="account-header">
@@ -74,7 +148,7 @@ const MyAccountPage = () => {
                             Build My Profile
                         </button>
                     </div>
-                    <button className="btn btn-secondary">Export as PDF</button>
+                    <button className="btn btn-secondary" onClick={handleExport}>Export as PDF</button>
                 </div>
 
                 <div className="account-dashboard">
@@ -100,6 +174,7 @@ const MyAccountPage = () => {
                 <ChatPanel userId={userId} />
             </div>
         </div>
+        </>
     );
 };
 
