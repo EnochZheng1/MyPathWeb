@@ -77,9 +77,7 @@ const ChatPanel = ({ userId }) => {
             const hedgeMessage = { id: Date.now() + 1, text: response.reply, sender: 'hedge' };
             setMessages(prev => [...prev, hedgeMessage]);
 
-            if (!sessionId) {
-                setSessionId(response.sessionId);
-            }
+            setSessionId(response.sessionId);
         } catch (error) {
             console.error("Failed to send message:", error);
             const errorMessage = { id: Date.now() + 1, text: "Sorry, I couldn't get a response. Please try again.", sender: 'hedge' };

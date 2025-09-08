@@ -1,3 +1,4 @@
+// In /server/models/ChatSession.js
 const mongoose = require('mongoose');
 const MessageSchema = new mongoose.Schema({
     id: { type: String, required: true },
@@ -7,7 +8,9 @@ const MessageSchema = new mongoose.Schema({
 });
 
 const ChatSessionSchema = new mongoose.Schema({
+    _id: { type: String, required: true }, // Use Dify's ID as our main ID
     userId: { type: String, required: true, index: true },
+    conversationId: { type: String, required: true, unique: true }, // Add Dify's ID
     messages: [MessageSchema],
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },

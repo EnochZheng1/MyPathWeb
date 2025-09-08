@@ -677,23 +677,116 @@ app.post('/api/profile/:userId/activities/improve', async (req, res) => {
   }
 });
 
+// app.post('/api/chat/message', async (req, res) => {
+//   let { userId, message, sessionId } = req.body;
+//   console.log(`--- Received chat message for user: ${userId}, session: ${sessionId || 'new'} ---`);
+
+//   if (!userId || !message) {
+//     return res.status(400).json({ message: 'User ID and message are required.' });
+//   }
+
+//   try {
+//     const userMessage = { id: new mongoose.Types.ObjectId().toString(), text: message, sender: 'user' };
+//     console.log('[INFO] Calling Dify Chat Workflow...');
+//     const difyBody = {
+//       inputs: {
+//       },
+//       query:message,
+//       response_mode: 'blocking',
+//       user: userId
+//     };
+
+//     const aiData = await callDifyWorkflow(
+//       process.env.DIFY_CHATFLOW_URL,
+//       process.env.COUNSELOR_KEY,
+//       difyBody
+//     );
+
+//     console.log("[INFO] Received raw response from Dify service.");
+//     console.log("Raw Dify Output:", JSON.stringify(aiData, null, 2)); 
+    
+//     const responseJson = aiData.answer;
+//     const aiReplyText = responseJson;
+//     console.log(`[SUCCESS] Received AI reply: "${aiReplyText}"`);
+
+//     const hedgeMessage = { id: new mongoose.Types.ObjectId().toString(), text: aiReplyText, sender: 'hedge' };
+
+//     let sessionToUpdate;
+//     if (sessionId){
+//       sessionToUpdate = await ChatSession.findByIdAndUpdate(
+//         sessionId,
+//         {
+//           $push: { messages: { $each: [userMessage, hedgeMessage] } },
+//           $set: { updatedAt: new Date() }
+//         },
+//         { new: true }
+//       );
+//     } else {
+//       sessionToUpdate = new ChatSession({
+//         userId: userId,
+//         messages: [userMessage, hedgeMessage],
+//       });
+//       await sessionToUpdate.save();
+//       sessionId = sessionToUpdate._id;
+//     }
+//     if (!sessionToUpdate) {
+//       return res.status(404).json({ message: 'Chat session could not be found or created.' });
+//     }
+
+//     res.json({ reply: aiReplyText, sessionId: sessionId });
+//   } catch (error) {
+//     console.error("Chat API Error:", error.message);
+//     res.status(500).json({ message: 'Error communicating with the chat service.' });
+//   }
+// });
+
+app.get('/api/chat/sessions/:userId', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        // Find all sessions for the user, sorted by most recently updated
+        const sessions = await ChatSession.find({ userId: userId }).sort({ updatedAt: -1 });
+        // Send back a summary of each session
+        const sessionSummaries = sessions.map(session => ({
+            id: session._id,
+            title: session.messages[0]?.text || 'New Chat', // Use first message as title
+            updatedAt: session.updatedAt
+        }));
+        res.json(sessionSummaries);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching chat sessions.' });
+    }
+});
+
+app.get('/api/chat/session/:sessionId', async (req, res) => {
+    const { sessionId } = req.params;
+    try {
+        const session = await ChatSession.findById(sessionId);
+        if (!session) {
+            return res.status(404).json({ message: 'Chat session not found.' });
+        }
+        res.json(session.messages);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching session messages.' });
+    }
+});
+
 app.post('/api/chat/message', async (req, res) => {
+  // Use 'sessionId' consistently to match the frontend
   let { userId, message, sessionId } = req.body;
-  console.log(`--- Received chat message for user: ${userId}, session: ${sessionId || 'new'} ---`);
+  console.log(`--- Received chat message for user: ${userId}, conversation: ${sessionId || 'new'} ---`);
 
   if (!userId || !message) {
     return res.status(400).json({ message: 'User ID and message are required.' });
   }
 
   try {
-    const userMessage = { id: new mongoose.Types.ObjectId().toString(), text: message, sender: 'user' };
-    console.log('[INFO] Calling Dify Chat Workflow...');
     const difyBody = {
-      inputs: {
-      },
-      query:message,
-      response_mode: 'blocking',
-      user: userId
+      inputs:{},
+      query: message,
+      user: userId,
+      // Pass the sessionId to Dify's conversation_id field
+      conversation_id: sessionId || '',
+      response_mode: 'blocking'
     };
 
     const aiData = await callDifyWorkflow(
@@ -702,43 +795,45 @@ app.post('/api/chat/message', async (req, res) => {
       difyBody
     );
 
-    console.log("[INFO] Received raw response from Dify service.");
-    console.log("Raw Dify Output:", JSON.stringify(aiData, null, 2)); 
-    
-    const responseJson = aiData.answer;
-    const aiReplyText = responseJson;
-    console.log(`[SUCCESS] Received AI reply: "${aiReplyText}"`);
+    const aiReplyText = aiData.answer;
+    const conversationIdFromServer = aiData.conversation_id; // Get Dify's ID
 
+    if (!aiReplyText || !conversationIdFromServer) {
+        throw new Error("Invalid response from Dify chat API.");
+    }
+
+    const userMessage = { id: new mongoose.Types.ObjectId().toString(), text: message, sender: 'user' };
     const hedgeMessage = { id: new mongoose.Types.ObjectId().toString(), text: aiReplyText, sender: 'hedge' };
-
+    
     let sessionToUpdate;
-    if (sessionId){
+    if (sessionId) { // If the conversation already existed
       sessionToUpdate = await ChatSession.findByIdAndUpdate(
         sessionId,
-        {
-          $push: { messages: { $each: [userMessage, hedgeMessage] } },
-          $set: { updatedAt: new Date() }
+        { 
+            $push: { messages: { $each: [userMessage, hedgeMessage] } },
+            $set: { updatedAt: new Date(), conversationId: conversationIdFromServer }
         },
         { new: true }
       );
-    } else {
+    } else { // If it's a new conversation
       sessionToUpdate = new ChatSession({
+        _id: conversationIdFromServer, // Use Dify's ID as our primary ID
         userId: userId,
+        conversationId: conversationIdFromServer,
         messages: [userMessage, hedgeMessage],
       });
       await sessionToUpdate.save();
-      sessionId = sessionToUpdate._id;
-    }
-    if (!sessionToUpdate) {
-      return res.status(404).json({ message: 'Chat session could not be found or created.' });
     }
 
-    res.json({ reply: aiReplyText, sessionId: sessionId });
+    // Return the session ID to the frontend
+    res.json({ reply: aiReplyText, sessionId: conversationIdFromServer });
+
   } catch (error) {
     console.error("Chat API Error:", error.message);
     res.status(500).json({ message: 'Error communicating with the chat service.' });
   }
 });
+
 
 app.get('/api/profile/:userId/reports', async (req, res) => {
     const { userId } = req.params;
