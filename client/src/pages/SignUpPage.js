@@ -1,6 +1,7 @@
 // client/src/pages/SignUpPage.js
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import hedgeLogo from '../assets/hedge-logo.png';
 import apiService from '../api';
 import '../App.css';
 
@@ -39,6 +40,7 @@ const SignUpPage = () => {
     return (
         <div className="auth-container">
             <div className="auth-form">
+                <img src={hedgeLogo} alt="Hedge Logo" style={{ width: '250px', display: 'block', margin: '0 auto 0px auto' }} />
                 <div className="auth-header">
                     <h2>Sign up</h2>
                     <Link to="/login" className="link-to-other">Log in</Link>

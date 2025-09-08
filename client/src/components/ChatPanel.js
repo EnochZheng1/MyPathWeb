@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiService from '../api';
+import hedgeLogo from '../assets/hedge-logo.png';
 
 
 const ChatPanel = ({ userId }) => {
@@ -22,6 +23,7 @@ const ChatPanel = ({ userId }) => {
     // Effect to load the user's most recent chat session on initial load
     const loadLatestSession = useCallback(async () => {
         if (!userId) {
+            setMessages([{ id: 'initial', text: 'Hello! I am Hedge. How can I help with your college application journey today?', sender: 'hedge' }]);
             setIsLoading(false);
             return;
         }
@@ -31,7 +33,10 @@ const ChatPanel = ({ userId }) => {
             if (sessions && sessions.length > 0) {
                 const latestSessionId = sessions[0].id;
                 const sessionMessages = await apiService(`/chat/session/${latestSessionId}`);
-                setMessages(sessionMessages);
+                setMessages(sessionMessages && sessionMessages.length > 0
+                  ? sessionMessages
+                  : [{ id: 'initial', text: 'Hello! I am Hedge. How can I help with your college application journey today?', sender: 'hedge' }]
+                );
                 setSessionId(latestSessionId);
             } else {
                 // If no history, start with a default welcome message
@@ -39,6 +44,10 @@ const ChatPanel = ({ userId }) => {
             }
         } catch (error) {
             console.error("Failed to load chat session:", error);
+            // Fallback: ensure a welcome message appears if nothing loaded
+            setMessages(prev => prev && prev.length > 0 ? prev : [
+                { id: 'initial', text: 'Hello! I am Hedge. How can I help with your college application journey today?', sender: 'hedge' }
+            ]);
         } finally {
             setIsLoading(false);
         }
@@ -88,14 +97,22 @@ const ChatPanel = ({ userId }) => {
                     <div className="loading-container">Loading chat...</div>
                 ) : (
                     messages.map((msg) => (
-                        <div key={msg.id} className={`message ${msg.sender}`}>
-                            {msg.text}
-                        </div>
+                        msg.sender === 'hedge' ? (
+                            <div key={msg.id} className="message-row hedge">
+                                <img className="message-avatar" src={hedgeLogo} alt="Hedge avatar" />
+                                <div className="message hedge">{msg.text}</div>
+                            </div>
+                        ) : (
+                            <div key={msg.id} className={`message ${msg.sender}`}>
+                                {msg.text}
+                            </div>
+                        )
                     ))
                 )}
                 {isTyping && (
-                    <div className="message hedge typing">
-                        Hedge is typing...
+                    <div className="message-row hedge">
+                        <img className="message-avatar" src={hedgeLogo} alt="Hedge avatar" />
+                        <div className="message hedge typing">Hedge is typing...</div>
                     </div>
                 )}
             </div>
