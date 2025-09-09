@@ -1,21 +1,13 @@
-// client/src/components/PrioritiesTab.js
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import SliderInput from './SliderInput';
 
-const PrioritiesTab = ({ savedAnswers, onSave, setActiveTab }) => {
-    const [answers, setAnswers] = useState(savedAnswers || {});
-
-    useEffect(() => {
-        setAnswers(savedAnswers || {});
-    }, [savedAnswers]);
-
+const PrioritiesTab = ({ answers, onAnswersChange, setActiveTab }) => {
     const handleChange = (questionId, value) => {
-        setAnswers(prev => ({ ...prev, [questionId]: value }));
+        onAnswersChange({ ...answers, [questionId]: value });
     };
 
-    const handleNext = async () => {
-        const success = await onSave(answers);
-        if (success) setActiveTab('Interests');
+    const handleNext = () => {
+        setActiveTab('Interests');
     };
 
     return (

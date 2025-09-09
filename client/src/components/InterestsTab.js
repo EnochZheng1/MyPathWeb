@@ -1,22 +1,12 @@
-// client/src/components/InterestsTab.js
-import React, { useState, useEffect, useCallbackallback } from 'react';
-import apiService from '../api';
-import { useUser } from '../context/UserContext';
+import React from 'react';
 
-const InterestsTab = ({ savedAnswers, onSave, setActiveTab }) => {
-    const [answers, setAnswers] = useState(savedAnswers || {});
-
-    useEffect(() => {
-        setAnswers(savedAnswers || {});
-    }, [savedAnswers]);
-
+const InterestsTab = ({ answers, onAnswersChange, setActiveTab }) => {
     const handleChange = (questionId, value) => {
-        setAnswers(prev => ({ ...prev, [questionId]: value }));
+        onAnswersChange({ ...answers, [questionId]: value });
     };
 
-    const handleNext = async () => {
-        const success = await onSave(answers);
-        if (success) setActiveTab('About Me');
+    const handleNext = () => {
+        setActiveTab('About Me');
     };
 
     return (

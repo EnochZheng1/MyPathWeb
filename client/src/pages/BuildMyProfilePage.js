@@ -1,5 +1,5 @@
 // client/src/pages/BuildMyProfilePage.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../api';
 import ChatPanel from '../components/ChatPanel';
@@ -7,12 +7,19 @@ import PrioritiesTab from '../components/PrioritiesTab';
 import InterestsTab from '../components/InterestsTab';
 import AboutMeTab from '../components/AboutMeTab';
 import { useUser } from '../context/UserContext';
+import { useDebounce } from '../hooks/useDebounce';
 
 const BuildMyProfilePage = () => {
     const { userId } = useUser() || { userId: 'testuser@example.com' };
     const [activeTab, setActiveTab] = useState('Priorities');
-    const [allAnswers, setAllAnswers] = useState({});
+    const [allAnswers, setAllAnswers] = useState({
+        priorities: {},
+        interests: {},
+        aboutMe: {}
+    });
     const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const debounceTimeoutRef = useRef(null);
     const navigate = useNavigate();
 
     const fetchAllAnswers = useCallback(async () => {
@@ -36,21 +43,46 @@ const BuildMyProfilePage = () => {
         fetchAllAnswers();
     }, [fetchAllAnswers]);
 
-    const handleSave = async (category, answers) => {
-        if (!userId) {
-            alert("You must be logged in to save.");
-            return false;
-        }
+    const saveProfile = useCallback(async (category, data) => {
+        if (!userId || !data) return;
+        setIsSaving(true);
         try {
             await apiService(`/profile/${userId}`, 'PUT', {
-                questionnaire: { [category]: answers }
+                questionnaire: { [category]: data }
             });
-            await fetchAllAnswers();
-            return true;
-        } catch (error) {
-            alert(`Error saving: ${error.message}`);
-            return false;
+            fetchAllAnswers();
+        } catch (error){
+            console.error(`Auto-save failed for ${category}: ${error.message}`);
+        } finally {
+            setTimeout(() => setIsSaving(false), 500);
         }
+    }, [userId, fetchAllAnswers]);
+
+    useEffect(() => {
+        if (debounceTimeoutRef.current){
+            clearTimeout(debounceTimeoutRef.current);
+        }
+        if (isLoading) return;
+        debounceTimeoutRef.current = setTimeout(() => {
+            const changedCategory = Object.keys(allAnswers).find(cat => {
+                return true;
+            });
+            if (changedCategory && allAnswers[activeTab]) {
+                saveProfile(activeTab.toLowerCase().replace(' ', ''), allAnswers[activeTab]);
+            }
+        }, 2000);
+        return () => {
+            if (debounceTimeoutRef.current) {
+                clearTimeout(debounceTimeoutRef.current);
+            }
+        };
+    }, [allAnswers, activeTab, isLoading, saveProfile]);
+
+    const handleAnswersChange = (category, updatedCategoryAnswers) => {
+        setAllAnswers(prev => ({
+            ...prev,
+            [category]: updatedCategoryAnswers
+        }));
     };
 
     const renderActiveTab = () => {
@@ -58,14 +90,20 @@ const BuildMyProfilePage = () => {
 
         switch (activeTab) {
             case 'Interests':
-                return <InterestsTab savedAnswers={allAnswers.interests} onSave={(answers) => handleSave('interests', answers)} setActiveTab={setActiveTab} />;
+                return <InterestsTab
+                    answers={allAnswers.interests || {}}
+                    onAnswersChange={(answers) => handleAnswersChange('interests', answers)}
+                    setActiveTab={setActiveTab} />;
             case 'About Me':
-                // THIS IS THE CORRECTED LINE:
-                // We now correctly pass the onSave function to the AboutMeTab.
-                return <AboutMeTab savedAnswers={allAnswers.aboutMe} onSave={(answers) => handleSave('aboutMe', answers)} />;
+                return <AboutMeTab
+                    answers={allAnswers.aboutMe || {}}
+                    onAnswersChange={(answers) => handleAnswersChange('aboutMe', answers)} />;
             case 'Priorities':
             default:
-                return <PrioritiesTab savedAnswers={allAnswers.priorities} onSave={(answers) => handleSave('priorities', answers)} setActiveTab={setActiveTab} />;
+                return <PrioritiesTab
+                    answers={allAnswers.priorities || {}}
+                    onAnswersChange={(answers) => handleAnswersChange('priorities', answers)}
+                    setActiveTab={setActiveTab} />;
         }
     };
 
@@ -74,7 +112,7 @@ const BuildMyProfilePage = () => {
             <div className="main-content">
                 <div className="profile-header">
                     <button className="back-btn" onClick={() => navigate('/account')}>&larr; My Account</button>
-                    <h1>Build My Profile</h1>
+                    <h1>Build My Profile {isSaving && <span className="saving-indicator">Saving...</span>}</h1>
                 </div>
                 <div className="profile-content">
                     <div className="tab-navigation">
