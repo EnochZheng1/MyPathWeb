@@ -1,12 +1,9 @@
+// client/src/components/InterestsTab.js
 import React from 'react';
 
-const InterestsTab = ({ answers, onAnswersChange, setActiveTab }) => {
+const InterestsTab = ({ answers, onAnswersChange, onNext }) => {
     const handleChange = (questionId, value) => {
         onAnswersChange({ ...answers, [questionId]: value });
-    };
-
-    const handleNext = () => {
-        setActiveTab('About Me');
     };
 
     return (
@@ -24,7 +21,7 @@ const InterestsTab = ({ answers, onAnswersChange, setActiveTab }) => {
                 <textarea className="form-input" rows="4" value={answers.i3 || ''} onChange={(e) => handleChange('i3', e.target.value)} />
             </div>
             <div className="form-actions">
-                <button className="btn btn-primary" onClick={handleNext}>Next</button>
+                <button className="btn btn-primary" onClick={onNext}>Next</button>
             </div>
         </div>
     );

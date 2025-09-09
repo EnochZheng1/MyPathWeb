@@ -1,13 +1,10 @@
+// client/src/components/PrioritiesTab.js
 import React from 'react';
 import SliderInput from './SliderInput';
 
-const PrioritiesTab = ({ answers, onAnswersChange, setActiveTab }) => {
+const PrioritiesTab = ({ answers, onAnswersChange, onNext }) => {
     const handleChange = (questionId, value) => {
         onAnswersChange({ ...answers, [questionId]: value });
-    };
-
-    const handleNext = () => {
-        setActiveTab('Interests');
     };
 
     return (
@@ -21,7 +18,7 @@ const PrioritiesTab = ({ answers, onAnswersChange, setActiveTab }) => {
             <SliderInput label="Campus" value={answers.p7} onChange={(val) => handleChange('p7', val)} />
             <SliderInput label="Affordability" value={answers.p8} onChange={(val) => handleChange('p8', val)} />
             <div className="form-actions">
-                <button className="btn btn-primary" onClick={handleNext}>Next</button>
+                <button className="btn btn-primary" onClick={onNext}>Next</button>
             </div>
         </div>
     );

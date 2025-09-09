@@ -1,10 +1,8 @@
+// client/src/components/AboutMeTab.js
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 
-const AboutMeTab = ({ answers, onAnswersChange }) => {
-    const navigate = useNavigate();
+const AboutMeTab = ({ answers, onAnswersChange, onFinish }) => {
 
-    // Derive state from props
     const scores = {
         uwgpa: answers.a1 || '',
         wgpa: answers.a2 || '',
@@ -41,11 +39,6 @@ const AboutMeTab = ({ answers, onAnswersChange }) => {
         onAnswersChange({ ...answers, a6: newActivities });
     };
 
-    const handleFinish = () => {
-        // The data is already saved, so we just navigate away
-        navigate('/account');
-    };
-
     return (
         <div className="form-container">
             <div className="score-grid">
@@ -55,7 +48,7 @@ const AboutMeTab = ({ answers, onAnswersChange }) => {
                 <div className="form-group"><label>SAT Math</label><input type="text" className="form-input" value={scores.satMath} onChange={e => handleScoreChange('satMath', e.target.value)} /></div>
                 <div className="form-group full-width"><label>ACT Score</label><input type="text" className="form-input" value={scores.act} onChange={e => handleScoreChange('act', e.target.value)} /></div>
             </div>
-
+            
             <hr className="divider" />
 
             <h3>Extracurricular Activities</h3>
@@ -68,7 +61,7 @@ const AboutMeTab = ({ answers, onAnswersChange }) => {
             <button className="btn btn-secondary" onClick={addActivity}>+ Add Another Activity</button>
 
             <div className="form-actions">
-                <button className="btn btn-primary" onClick={handleFinish}>Finish</button>
+                <button className="btn btn-primary" onClick={onFinish}>Finish</button>
             </div>
         </div>
     );
