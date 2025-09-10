@@ -35,7 +35,6 @@ const EssayActivitiesPage = () => {
                 <div className="profile-header">
                     <button className="back-btn" onClick={() => navigate('/account')}>&larr; My Account</button>
                     <h1>Essay & Activities List</h1>
-                    <button className="btn btn-secondary">Export</button>
                 </div>
 
                 <div className="report-section">
