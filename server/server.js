@@ -57,7 +57,8 @@ const ProfileSchema = new mongoose.Schema({
     checklist: [{
       id: { type: String, required: true },
       text: { type: String, required: true },
-      status: { type: String, default: 'incomplete' }
+      status: { type: String, default: 'incomplete' },
+      dueDate: { type: Date }
     }],
     catchUp: [{
       id: { type: String, required: true },
@@ -601,6 +602,54 @@ app.get('/api/profile/:userId/schedule', async (req, res) => {
   }
 });
 
+app.post('/api/profile/:userId/schedule/tasks', async (req, res) => {
+    const { userId } = req.params;
+    const { text, dueDate } = req.body;
+
+    if (!text) {
+        return res.status(400).json({ message: 'Task text is required.' });
+    }
+
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found.' });
+        }
+
+        const newTask = {
+            id: new mongoose.Types.ObjectId().toString(),
+            text,
+            status: 'incomplete',
+            dueDate: dueDate ? new Date(dueDate) : null
+        };
+
+        profile.schedule.checklist.push(newTask);
+        await profile.save();
+        res.status(201).json(profile.schedule);
+    } catch (error) {
+        res.status(500).json({ message: 'Error adding task.', error: error.message });
+    }
+});
+
+app.delete('/api/profile/:userId/schedule/tasks/:taskId', async (req, res) => {
+    const { userId, taskId } = req.params;
+
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found.' });
+        }
+
+        profile.schedule.checklist = profile.schedule.checklist.filter(task => task.id !== taskId);
+        profile.schedule.catchUp = profile.schedule.catchUp.filter(task => task.id !== taskId);
+
+        await profile.save();
+        res.json(profile.schedule);
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting task.', error: error.message });
+    }
+});
+
 app.post('/api/profile/:userId/activities/improve', async (req, res) => {
   const { userId } = req.params;
   const { activityId, activityDescription } = req.body;
@@ -676,69 +725,6 @@ app.post('/api/profile/:userId/activities/improve', async (req, res) => {
     res.status(500).json({ message: 'Error improving activity description.' });
   }
 });
-
-// app.post('/api/chat/message', async (req, res) => {
-//   let { userId, message, sessionId } = req.body;
-//   console.log(`--- Received chat message for user: ${userId}, session: ${sessionId || 'new'} ---`);
-
-//   if (!userId || !message) {
-//     return res.status(400).json({ message: 'User ID and message are required.' });
-//   }
-
-//   try {
-//     const userMessage = { id: new mongoose.Types.ObjectId().toString(), text: message, sender: 'user' };
-//     console.log('[INFO] Calling Dify Chat Workflow...');
-//     const difyBody = {
-//       inputs: {
-//       },
-//       query:message,
-//       response_mode: 'blocking',
-//       user: userId
-//     };
-
-//     const aiData = await callDifyWorkflow(
-//       process.env.DIFY_CHATFLOW_URL,
-//       process.env.COUNSELOR_KEY,
-//       difyBody
-//     );
-
-//     console.log("[INFO] Received raw response from Dify service.");
-//     console.log("Raw Dify Output:", JSON.stringify(aiData, null, 2)); 
-    
-//     const responseJson = aiData.answer;
-//     const aiReplyText = responseJson;
-//     console.log(`[SUCCESS] Received AI reply: "${aiReplyText}"`);
-
-//     const hedgeMessage = { id: new mongoose.Types.ObjectId().toString(), text: aiReplyText, sender: 'hedge' };
-
-//     let sessionToUpdate;
-//     if (sessionId){
-//       sessionToUpdate = await ChatSession.findByIdAndUpdate(
-//         sessionId,
-//         {
-//           $push: { messages: { $each: [userMessage, hedgeMessage] } },
-//           $set: { updatedAt: new Date() }
-//         },
-//         { new: true }
-//       );
-//     } else {
-//       sessionToUpdate = new ChatSession({
-//         userId: userId,
-//         messages: [userMessage, hedgeMessage],
-//       });
-//       await sessionToUpdate.save();
-//       sessionId = sessionToUpdate._id;
-//     }
-//     if (!sessionToUpdate) {
-//       return res.status(404).json({ message: 'Chat session could not be found or created.' });
-//     }
-
-//     res.json({ reply: aiReplyText, sessionId: sessionId });
-//   } catch (error) {
-//     console.error("Chat API Error:", error.message);
-//     res.status(500).json({ message: 'Error communicating with the chat service.' });
-//   }
-// });
 
 app.get('/api/chat/sessions/:userId', async (req, res) => {
     const { userId } = req.params;

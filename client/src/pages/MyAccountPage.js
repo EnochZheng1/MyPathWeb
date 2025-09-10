@@ -7,6 +7,7 @@ import { useUser } from '../context/UserContext';
 import PdfReport from '../components/pdf/PdfReport';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import AddTaskModal from '../components/AddTaskModal';
 
 const MyAccountPage = () => {
     const { userId } = useUser();
@@ -14,46 +15,49 @@ const MyAccountPage = () => {
     const [schedule, setSchedule] = useState({ checklist: [], catchUp: [] });
     const [profile, setProfile] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [newTaskText, setNewTaskText] = useState('');
+    const [newTaskDueDate, setNewTaskDueDate] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const fetchSchedule = useCallback(async () => {
-        if (!userId) return;
+    const fetchAllData = useCallback(async () => {
+        if (!userId) {
+            setIsLoading(false);
+            return;
+        }
         setIsLoading(true);
         try {
-            const scheduleData = await apiService(`/profile/${userId}/schedule`);
+            // Use Promise.all to fetch all necessary data in parallel
+            const [scheduleData, profileData] = await Promise.all([
+                apiService(`/profile/${userId}/schedule`),
+                apiService(`/profile/${userId}`) // We need the full profile for the PDF
+            ]);
+
+            // Sort checklist by due date after it has been fetched
+            if (scheduleData && scheduleData.checklist) {
+                scheduleData.checklist.sort((a, b) => {
+                    if (a.dueDate && b.dueDate) {
+                        return new Date(a.dueDate) - new Date(b.dueDate);
+                    }
+                    if (a.dueDate) return -1;
+                    if (b.dueDate) return 1;
+                    return 0;
+                });
+            }
+
             setSchedule(scheduleData || { checklist: [], catchUp: [] });
+            setProfile(profileData);
         } catch (error) {
-            console.error("Could not load schedule:", error);
+            console.error("Could not load dashboard data:", error);
+            // Set a fallback schedule if data loading fails
+            setSchedule({ checklist: [{id: 'fallback', text: 'Generate your college list to see your tasks!'}], catchUp: [] });
         } finally {
             setIsLoading(false);
         }
     }, [userId]);
 
     useEffect(() => {
-        if (!userId) {
-            setIsLoading(false);
-            return;
-        };
-
-        const fetchAllData = async () => {
-            setIsLoading(true);
-            try {
-                // Use Promise.all to fetch all necessary data in parallel
-                const [scheduleData, profileData] = await Promise.all([
-                    apiService(`/profile/${userId}/schedule`),
-                    apiService(`/profile/${userId}`) // We need the full profile for the PDF
-                ]);
-                setSchedule(scheduleData || { checklist: [], catchUp: [] });
-                setProfile(profileData);
-            } catch (error) {
-                console.error("Could not load dashboard data:", error);
-                setSchedule({ checklist: ['Generate your college list to see your tasks!'], catchUp: [] });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchAllData();
-    }, [userId]);
+    }, [fetchAllData]);
 
     const handleToggleTask = async (taskId, currentStatus) => {
         const newStatus = currentStatus === 'completed' ? 'incomplete' : 'completed';
@@ -63,9 +67,52 @@ const MyAccountPage = () => {
                 'PUT',
                 { status: newStatus }
             );
+            if (updatedSchedule.checklist){
+                updatedSchedule.checklist.sort((a,b) => {
+                    if (a.dueDate && b.dueDate){
+                        return new Date(a.dueDate) - new Date(b.dueDate);
+                    }
+                    if (a.dueDate) return -1;
+                    if (b.dueDate) return 1;
+                    return 0;
+                });
+            }
             setSchedule(updatedSchedule);
         } catch (error) {
             alert(`Could not update task: ${error.message}`);
+        }
+    };
+
+    const handleAddTask = async ({ text, dueDate }) => {
+        try {
+            const updatedSchedule = await apiService(
+                `/profile/${userId}/schedule/tasks`,
+                'POST',
+                { text, dueDate }
+            );
+            if (updatedSchedule.checklist) {
+                updatedSchedule.checklist.sort((a, b) => {
+                    if (a.dueDate && b.dueDate) return new Date(a.dueDate) - new Date(b.dueDate);
+                    if (a.dueDate) return -1;
+                    if (b.dueDate) return 1;
+                    return 0;
+                });
+            }
+            setSchedule(updatedSchedule);
+        } catch (error) {
+            alert(`Could not add task: ${error.message}`);
+        }
+    };
+
+    const handleDeleteTask = async (taskId) => {
+        try {
+            const updatedSchedule = await apiService(
+                `/profile/${userId}/schedule/tasks/${taskId}`,
+                'DELETE'
+            );
+            setSchedule(updatedSchedule);
+        } catch (error) {
+            alert(`Could not delete task: ${error.message}`);
         }
     };
 
@@ -121,9 +168,18 @@ const MyAccountPage = () => {
                 <li
                     key={task.id}
                     className={task.status === 'completed' ? 'completed' : ''}
-                    onClick={() => handleToggleTask(task.id, task.status)}
                 >
-                    {task.text}
+                    <span className="task-text-container" onClick={() => handleToggleTask(task.id, task.status)}>
+                        {task.text}
+                        {task.dueDate && (
+                            <span className="due-date">
+                                (Due: {new Date(task.dueDate).toLocaleDateString()})
+                            </span>
+                        )}
+                    </span>
+                    <button onClick={() => handleDeleteTask(task.id)} className="delete-task-btn">
+                        &times;
+                    </button>
                 </li>
             ))}
         </ul>
@@ -135,6 +191,12 @@ const MyAccountPage = () => {
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
             <PdfReport profile={profile} />
         </div>
+
+        <AddTaskModal 
+            isOpen={isModalOpen} 
+            onClose={() => setIsModalOpen(false)} 
+            onAddTask={handleAddTask} 
+        />
 
         <div className="account-page-container">
             <div className="main-content">
@@ -154,12 +216,15 @@ const MyAccountPage = () => {
                 <div className="account-dashboard">
                     <div className="left-panel">
                         <div className="checklist-card">
-                            <h3>My 2-Week Checklist</h3>
+                            <div className="card-header">
+                                <h3>My 2-Week Checklist</h3>
+                                <button className="btn-add-task" onClick={() => setIsModalOpen(true)}>+ Add Task</button>
+                            </div>
                             {isLoading ? <p>Loading...</p> : renderTaskList(schedule.checklist)}
                         </div>
                         <div className="catch-up-card">
                             <h3>Catch Up / Get Ahead</h3>
-                             {isLoading ? <p>Loading...</p> : renderTaskList(schedule.catchUp)}
+                                {isLoading ? <p>Loading...</p> : renderTaskList(schedule.catchUp)}
                         </div>
                     </div>
                     <div className="right-panel">
