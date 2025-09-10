@@ -49,7 +49,6 @@ const StrengthsImprovementsPage = () => {
                 <div className="profile-header">
                     <button className="back-btn" onClick={() => navigate('/account')}>&larr; My Account</button>
                     <h1>Strengths & Improvements</h1>
-                    <button className="btn btn-secondary">Export</button>
                 </div>
 
                 {isLoading ? (
