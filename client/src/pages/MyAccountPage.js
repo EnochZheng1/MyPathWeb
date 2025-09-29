@@ -10,7 +10,7 @@ import jsPDF from 'jspdf';
 import AddTaskModal from '../components/AddTaskModal';
 
 const MyAccountPage = () => {
-    const { userId } = useUser();
+    const { userId, setUserId } = useUser();
     const navigate = useNavigate(); // 2. Initialize the navigate function
     const [schedule, setSchedule] = useState({ checklist: [], catchUp: [] });
     const [profile, setProfile] = useState(null);
@@ -162,6 +162,11 @@ const MyAccountPage = () => {
     const goToStrengths = () => navigate('/strengths-improvements');
     const goToEssays = () => navigate('/essays-activities');
 
+    const handleSignOut = () => {
+        setUserId(null);
+        navigate('/login');
+    };
+
     const renderTaskList = (tasks) => (
         <ul>
             {tasks.map(task => (
@@ -210,7 +215,10 @@ const MyAccountPage = () => {
                             Build My Profile
                         </button>
                     </div>
-                    <button className="btn btn-secondary" onClick={handleExport}>Export as PDF</button>
+                    <div className="account-header-right">
+                        <button className="btn btn-secondary" onClick={handleExport}>Export as PDF</button>
+                        <button className="btn btn-secondary sign-out-btn" onClick={handleSignOut}>Sign Out</button>
+                    </div>
                 </div>
 
                 <div className="account-dashboard">
