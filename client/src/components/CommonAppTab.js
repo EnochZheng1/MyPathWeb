@@ -58,6 +58,7 @@ const CommonAppTab = () => {
 
     return (
         <div className="essay-prompts-list">
+            <p className="tab-intro">Choose 1 of the 7 prompts below and keep your response to 650 words or fewer. Focus on the story only you can tell.</p>
             {prompts.map(prompt => (
                 <div key={prompt.id} className="prompt-item">
                     <h4>{prompt.title}</h4>
