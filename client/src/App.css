@@ -382,11 +382,14 @@ h1, h2, h3, h4 {
 .header-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 1rem;
+  width: 100%;
 }
 
 .header-actions .regenerate-btn {
   white-space: nowrap;
+  margin-left: auto;
 }
 
 .back-btn {

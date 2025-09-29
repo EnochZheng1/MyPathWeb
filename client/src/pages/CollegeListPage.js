@@ -96,7 +96,7 @@ const CollegeListPage = () => {
                             onClick={generateNewData}
                             disabled={isLoading}
                         >
-                            {isLoading ? 'Generating...' : 'Regenerate Reports'}
+                            {isLoading ? 'Generating...' : 'Regenerate'}
                         </button>
                     </div>
                 </div>
