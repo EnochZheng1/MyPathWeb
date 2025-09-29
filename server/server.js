@@ -39,9 +39,17 @@ const ProfileSchema = new mongoose.Schema({
     sat: {
       current: { type: Number, default: null },
       goal: { type: Number, default: null },
-      targetDate: { type: String, default: '' }
+      targetDate: { type: String, default: '' },
+      reading: { type: Number, default: null },
+      math: { type: Number, default: null }
     },
     gpa: {
+      current: { type: Number, default: null },
+      goal: { type: Number, default: null },
+      unweighted: { type: Number, default: null },
+      weighted: { type: Number, default: null }
+    },
+    act: {
       current: { type: Number, default: null },
       goal: { type: Number, default: null }
     },
@@ -111,6 +119,62 @@ const generateWhyReasons = async (profileSummary, schoolName, userId) => {
       difyBody
   );
   return JSON.parse(aiData.data.outputs.reasoning).reasons || [];
+};
+
+const toNumberOrNull = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const deriveAcademicTracker = (questionnaire = [], existingTracker = {}) => {
+  const aboutMeAnswers = questionnaire
+    .filter(item => item && item.category === 'aboutMe')
+    .reduce((acc, item) => {
+      acc[item.id] = item.answer;
+      return acc;
+    }, {});
+
+  const unweighted = toNumberOrNull(aboutMeAnswers.a1);
+  const weighted = toNumberOrNull(aboutMeAnswers.a2);
+  const satReading = toNumberOrNull(aboutMeAnswers.a3);
+  const satMath = toNumberOrNull(aboutMeAnswers.a4);
+  const actScore = toNumberOrNull(aboutMeAnswers.a5);
+
+  const satCurrent = satReading !== null && satMath !== null
+    ? satReading + satMath
+    : (satReading ?? satMath);
+
+  const existingSat = existingTracker.sat || {};
+  const existingGpa = existingTracker.gpa || {};
+  const existingAct = existingTracker.act || {};
+
+  return {
+    ...existingTracker,
+    sat: {
+      ...existingSat,
+      current: satCurrent ?? existingSat.current ?? null,
+      reading: satReading ?? existingSat.reading ?? null,
+      math: satMath ?? existingSat.math ?? null,
+      goal: existingSat.goal ?? null,
+      targetDate: existingSat.targetDate ?? '',
+    },
+    gpa: {
+      ...existingGpa,
+      current: unweighted ?? existingGpa.current ?? null,
+      goal: existingGpa.goal ?? null,
+      unweighted: unweighted ?? existingGpa.unweighted ?? null,
+      weighted: weighted ?? existingGpa.weighted ?? null,
+    },
+    act: {
+      ...existingAct,
+      current: actScore ?? existingAct.current ?? null,
+      goal: existingAct.goal ?? null,
+    },
+    competitions: Array.isArray(existingTracker.competitions) ? existingTracker.competitions : [],
+  };
 };
 
 const generateAiInsight = async (profile, apiKey, outputKey) => {
@@ -214,10 +278,12 @@ app.post('/api/users/signin', async (req, res) => {
 // GET a user's profile
 app.get('/api/profile/:userId', async (req, res) => {
   try {
-    const profile = await Profile.findOne({ userId: req.params.userId });
+    const profile = await Profile.findOne({ userId: req.params.userId }).lean();
     if (!profile) {
       return res.status(404).json({ message: "Profile not found." });
     }
+
+    profile.tracker = deriveAcademicTracker(profile.questionnaire, profile.tracker || {});
     res.json(profile);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching profile', error });
@@ -260,12 +326,23 @@ app.put('/api/profile/:userId', async (req, res) => {
       profile.questionnaire = [...otherCategoryAnswers, ...newAnswers];
     }
     
-    // B. Handle other updates like the tracker (this logic is good)
+    // B. Handle tracker updates sent directly from the client
     if (updates.tracker) {
-        Object.assign(profile.tracker, updates.tracker);
+        profile.tracker = profile.tracker || {};
+        Object.entries(updates.tracker).forEach(([key, value]) => {
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            profile.tracker[key] = { ...(profile.tracker[key] || {}), ...value };
+          } else {
+            profile.tracker[key] = value;
+          }
+        });
     }
 
-    // C. Re-generate profile summary and save all changes
+    // C. Keep tracker fields in sync with questionnaire answers
+    profile.tracker = deriveAcademicTracker(profile.questionnaire, profile.tracker || {});
+    profile.markModified('tracker');
+
+    // D. Re-generate profile summary and save all changes
     profile.profileSummary = await generateProfileSummary(profile);
     profile.lastUpdated = Date.now();
     

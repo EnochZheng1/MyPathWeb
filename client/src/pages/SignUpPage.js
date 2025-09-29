@@ -30,7 +30,7 @@ const SignUpPage = () => {
         try {
             const { age, confirmPassword, ...apiData } = formData;
             await apiService('/users/create', 'POST', apiData);
-            alert('Account created successfully! Please log in.');
+            alert('Account created successfully!');
             navigate('/login');
         } catch (error) {
             alert(`Sign up failed: ${error.message}`);

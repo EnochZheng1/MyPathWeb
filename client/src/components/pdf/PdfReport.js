@@ -13,6 +13,13 @@ const PdfReport = ({ profile }) => {
       ...(profile.applicationStrategies?.earlyAction || [])
   ];
 
+  const tracker = profile.tracker || {};
+  const gpaUnweighted = tracker.gpa?.unweighted ?? tracker.gpa?.current ?? null;
+  const gpaWeighted = tracker.gpa?.weighted ?? null;
+  const satScore = tracker.sat?.current ?? null;
+  const actScore = tracker.act?.current ?? null;
+  const competitionsCount = Array.isArray(tracker.competitions) ? tracker.competitions.length : 0;
+
   return (
     <div id="pdf-report-content" className="pdf-container">
       <header className="pdf-header">
@@ -33,9 +40,11 @@ const PdfReport = ({ profile }) => {
       <section className="pdf-section">
         <h3>Academic Snapshot</h3>
         <div className="snapshot-grid">
-            <div><strong>GPA (Unweighted):</strong> {profile.tracker?.gpa?.current || 'N/A'}</div>
-            <div><strong>SAT Score:</strong> {profile.tracker?.sat?.current || 'N/A'}</div>
-            <div><strong>Competitions:</strong> {profile.tracker?.competitions?.length || 0}</div>
+            <div><strong>GPA (Unweighted):</strong> {gpaUnweighted ?? 'N/A'}</div>
+            <div><strong>GPA (Weighted):</strong> {gpaWeighted ?? 'N/A'}</div>
+            <div><strong>SAT Score:</strong> {satScore ?? 'N/A'}</div>
+            <div><strong>ACT Score:</strong> {actScore ?? 'N/A'}</div>
+            <div><strong>Competitions:</strong> {competitionsCount}</div>
         </div>
       </section>
       

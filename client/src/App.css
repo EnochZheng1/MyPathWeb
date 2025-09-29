@@ -379,6 +379,16 @@ h1, h2, h3, h4 {
   margin-bottom: 2rem;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-actions .regenerate-btn {
+  white-space: nowrap;
+}
+
 .back-btn {
   background: none;
   border: none;

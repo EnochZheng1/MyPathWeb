@@ -89,7 +89,16 @@ const CollegeListPage = () => {
             <div className="main-content">
                 <div className="profile-header">
                     <button className="back-btn" onClick={() => navigate('/account')}>&larr; My Account</button>
-                    <h1>College List & Application Strategy</h1>
+                    <div className="header-actions">
+                        <h1>College List & Application Strategy</h1>
+                        <button
+                            className="btn btn-secondary regenerate-btn"
+                            onClick={generateNewData}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? 'Generating...' : 'Regenerate Reports'}
+                        </button>
+                    </div>
                 </div>
 
                 {isLoading ? (
