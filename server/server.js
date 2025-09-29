@@ -264,10 +264,13 @@ app.post('/api/users/signin', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials.' });
     }
 
+    const needsProfileSetup = !profile.questionnaire || profile.questionnaire.length === 0;
+
     console.log(`[SUCCESS] User signed in: ${profile.userId}`);
     res.status(200).json({
       message: 'Sign in successful!',
       userId: profile.userId,
+      needsProfileSetup,
     });
   } catch (error) {
     console.error('[ERROR] Server error during sign in:', error);

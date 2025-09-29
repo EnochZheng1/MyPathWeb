@@ -17,7 +17,8 @@ const LoginPage = () => {
         try {
             const data = await apiService('/users/signin', 'POST', { email, password });
             setUserId(data.userId); // Save userId to global context
-            navigate('/account'); // Redirect to the main dashboard
+            const nextRoute = data.needsProfileSetup ? '/build-profile' : '/account';
+            navigate(nextRoute); // Redirect based on profile completion
         } catch (error) {
             alert(`Login failed: ${error.message}`);
         }
