@@ -89,7 +89,8 @@ const ProfileSchema = new mongoose.Schema({
   essaysAndActivities: {
     commonApp: { type: Object, default: {} },
     ucQuestions: { type: Object, default: {} },
-    activities: { type: Array, default: [] }
+    activities: { type: Array, default: [] },
+    supplementals: { type: Object, default: {} }
   }
 }, { timestamps: true });
 
@@ -969,10 +970,30 @@ app.post('/api/profile/:userId/essays/brainstorm', async (req, res) => {
         const brainstormingIdeas = aiData.data.outputs.ideas;
 
         // Save the ideas to the correct place in the user's profile
-        if (!profile.essaysAndActivities[promptType]) {
-            profile.essaysAndActivities[promptType] = {};
+        if (!profile.essaysAndActivities) {
+            profile.essaysAndActivities = {};
         }
-        profile.essaysAndActivities[promptType][prompt.id] = brainstormingIdeas;
+
+        if (promptType === 'supplementals') {
+            if (!profile.essaysAndActivities.supplementals) {
+                profile.essaysAndActivities.supplementals = {};
+            }
+
+            const existingEntry = profile.essaysAndActivities.supplementals[prompt.id] || {};
+            profile.essaysAndActivities.supplementals[prompt.id] = {
+                ...existingEntry,
+                id: prompt.id,
+                school: prompt.school,
+                prompt: prompt.details || prompt.prompt,
+                wordLimit: prompt.wordLimit || existingEntry.wordLimit || '',
+                ideas: brainstormingIdeas,
+            };
+        } else {
+            if (!profile.essaysAndActivities[promptType]) {
+                profile.essaysAndActivities[promptType] = {};
+            }
+            profile.essaysAndActivities[promptType][prompt.id] = brainstormingIdeas;
+        }
         
         profile.markModified('essaysAndActivities');
         await profile.save();
@@ -1023,28 +1044,104 @@ app.get('/api/profile/:userId/supplementals', async (req, res) => {
     const { userId } = req.params;
     try {
         const profile = await Profile.findOne({ userId });
-        if (!profile || !profile.collegeList) {
-            return res.status(404).json({ message: 'College list not found.' });
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found.' });
         }
 
-        // Combine all colleges from the list
-        const allColleges = [
-            ...profile.collegeList.reach,
-            ...profile.collegeList.target,
-            ...profile.collegeList.likely
-        ];
+        const storedSupplementals = profile.essaysAndActivities && profile.essaysAndActivities.supplementals
+            ? profile.essaysAndActivities.supplementals
+            : {};
+        const prompts = Object.values(storedSupplementals);
 
-        // Add mock data for the number of supplemental essays
-        const supplementalsData = allColleges.map(college => ({
-            school: college.school,
-            // In a real application, this data would come from a dedicated database
-            // For now, we'll use a placeholder
-            supplementalCount: 0
-        }));
+        const promptCountsBySchool = prompts.reduce((acc, entry) => {
+            if (!entry || !entry.school) {
+                return acc;
+            }
+            const key = entry.school.toLowerCase();
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
 
-        res.json(supplementalsData);
+        let overview = [];
+        if (profile.collegeList) {
+            const allColleges = [
+                ...(profile.collegeList.reach || []),
+                ...(profile.collegeList.target || []),
+                ...(profile.collegeList.likely || [])
+            ];
+
+            overview = allColleges.map(college => ({
+                school: college.school,
+                supplementalCount: promptCountsBySchool[college.school?.toLowerCase()] || 0,
+            }));
+        }
+
+        res.json({ overview, prompts });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching supplemental essay data', error: error.message });
+    }
+});
+
+app.post('/api/profile/:userId/supplementals', async (req, res) => {
+    const { userId } = req.params;
+    const { school, prompt, wordLimit } = req.body;
+
+    if (!school || !prompt) {
+        return res.status(400).json({ message: 'School and prompt text are required.' });
+    }
+
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found.' });
+        }
+
+        if (!profile.essaysAndActivities) {
+            profile.essaysAndActivities = {};
+        }
+        if (!profile.essaysAndActivities.supplementals) {
+            profile.essaysAndActivities.supplementals = {};
+        }
+
+        const id = new mongoose.Types.ObjectId().toString();
+        const newEntry = {
+            id,
+            school: school.trim(),
+            prompt: prompt.trim(),
+            wordLimit: wordLimit ? String(wordLimit).trim() : '',
+            ideas: [],
+        };
+
+        profile.essaysAndActivities.supplementals[id] = newEntry;
+        profile.markModified('essaysAndActivities');
+        await profile.save();
+
+        res.status(201).json(newEntry);
+    } catch (error) {
+        res.status(500).json({ message: 'Error saving supplemental prompt', error: error.message });
+    }
+});
+
+app.delete('/api/profile/:userId/supplementals/:promptId', async (req, res) => {
+    const { userId, promptId } = req.params;
+
+    try {
+        const profile = await Profile.findOne({ userId });
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found.' });
+        }
+
+        if (!profile.essaysAndActivities || !profile.essaysAndActivities.supplementals || !profile.essaysAndActivities.supplementals[promptId]) {
+            return res.status(404).json({ message: 'Supplemental prompt not found.' });
+        }
+
+        delete profile.essaysAndActivities.supplementals[promptId];
+        profile.markModified('essaysAndActivities');
+        await profile.save();
+
+        res.status(204).end();
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting supplemental prompt', error: error.message });
     }
 });
 

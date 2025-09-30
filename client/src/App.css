@@ -852,36 +852,113 @@ textarea.form-input {
 }
 
 /* === Supplementals Tab Styles === */
+.tab-intro {
+  background-color: var(--container-bg);
+  border-radius: 12px;
+  padding: 16px 24px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.supplementals-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.supplemental-form {
+  background-color: var(--container-bg);
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.supplemental-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.supplemental-form .form-group {
+  flex: 1 1 240px;
+}
+
+.supplemental-form textarea {
+  min-height: 120px;
+}
+
+.supplementals-overview {
+  background-color: var(--container-bg);
+  border-radius: 12px;
+  padding: 18px 24px;
+}
+
+.supplementals-overview ul {
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.supplementals-overview li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.supplementals-overview li strong {
+  color: var(--text-primary);
+}
+
 .supplementals-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
-.supplemental-item {
-    display: grid;
-    grid-template-columns: 2fr 1fr 80px; /* School Name | Count | Button */
-    align-items: center;
-    gap: 20px;
-    background-color: var(--container-bg);
-    padding: 15px 25px;
-    border-radius: 12px;
+.supplementals-empty {
+  color: var(--text-secondary);
+  font-style: italic;
 }
 
-.supplemental-school {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: var(--text-primary);
+.supplemental-entry {
+  background-color: var(--container-bg);
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.supplemental-count {
-    color: var(--text-secondary);
+.supplemental-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
 }
 
-.go-btn {
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 1rem;
+.supplemental-entry h4 {
+  margin: 0;
+}
+
+.supplemental-prompt {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.supplemental-wordlimit {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.supplemental-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* === WhyCollegeModal === */
