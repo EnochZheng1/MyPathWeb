@@ -16,6 +16,8 @@ const SupplementalsTab = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [brainstormingId, setBrainstormingId] = useState(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isOverviewOpen, setIsOverviewOpen] = useState(false);
 
     const loadSupplementals = useCallback(async () => {
         if (!userId) {
@@ -61,6 +63,7 @@ const SupplementalsTab = () => {
                 wordLimit: formData.wordLimit.trim()
             });
             setFormData(emptyForm);
+            setIsAddModalOpen(false);
             await loadSupplementals();
         } catch (error) {
             alert(`Could not save supplemental prompt: ${error.message}`);
@@ -101,6 +104,11 @@ const SupplementalsTab = () => {
         }
     };
 
+    const openAddModal = () => {
+        setFormData(emptyForm);
+        setIsAddModalOpen(true);
+    };
+
     if (isLoading) {
         return <div className="loading-container">Loading Supplemental Prompts...</div>;
     }
@@ -112,65 +120,18 @@ const SupplementalsTab = () => {
                 let MyPath draft tailored brainstorming ideas.
             </p>
 
-            <form className="supplemental-form" onSubmit={handleAddPrompt}>
-                <h4>Add a Supplemental Prompt</h4>
-                <div className="supplemental-form-row">
-                    <div className="form-group">
-                        <label htmlFor="supplemental-school">College</label>
-                        <input
-                            id="supplemental-school"
-                            type="text"
-                            className="form-input"
-                            value={formData.school}
-                            onChange={handleChange('school')}
-                            placeholder="e.g., Stanford University"
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="supplemental-wordlimit">Word Limit (optional)</label>
-                        <input
-                            id="supplemental-wordlimit"
-                            type="text"
-                            className="form-input"
-                            value={formData.wordLimit}
-                            onChange={handleChange('wordLimit')}
-                            placeholder="e.g., 150"
-                        />
-                    </div>
-                </div>
-                <div className="form-group">
-                    <label htmlFor="supplemental-prompt">Prompt</label>
-                    <textarea
-                        id="supplemental-prompt"
-                        className="form-input"
-                        rows={4}
-                        value={formData.prompt}
-                        onChange={handleChange('prompt')}
-                        placeholder="Paste the question prompt here"
-                        required
-                    />
-                </div>
-                <button type="submit" className="btn btn-secondary" disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving...' : 'Save Prompt'}
+            <div className="supplementals-actions">
+                <button
+                    className="btn btn-secondary"
+                    onClick={() => setIsOverviewOpen(true)}
+                    disabled={!overview || overview.length === 0}
+                >
+                    Colleges on your list
                 </button>
-            </form>
-
-            {overview && overview.length > 0 && (
-                <div className="supplementals-overview">
-                    <h4>Colleges on your list</h4>
-                    <ul>
-                        {overview.map((item, index) => (
-                            <li key={`${item.school || 'school'}-${index}`}>
-                                <strong>{item.school}</strong>
-                                <span>
-                                    {item.supplementalCount} supplemental prompt{item.supplementalCount === 1 ? '' : 's'} added
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+                <button className="btn btn-secondary" onClick={openAddModal}>
+                    Add supplemental prompt
+                </button>
+            </div>
 
             <div className="supplementals-list">
                 {supplementals.length === 0 ? (
@@ -220,6 +181,81 @@ const SupplementalsTab = () => {
                     ))
                 )}
             </div>
+
+            {isAddModalOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-content supplemental-modal-content">
+                        <button className="modal-close-btn" onClick={() => setIsAddModalOpen(false)}>&times;</button>
+                        <h4>Add a Supplemental Prompt</h4>
+                        <form onSubmit={handleAddPrompt}>
+                            <div className="supplemental-form-row">
+                                <div className="form-group">
+                                    <label htmlFor="supplemental-school">College</label>
+                                    <input
+                                        id="supplemental-school"
+                                        type="text"
+                                        className="form-input"
+                                        value={formData.school}
+                                        onChange={handleChange('school')}
+                                        placeholder="e.g., Stanford University"
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="supplemental-wordlimit">Word Limit (optional)</label>
+                                    <input
+                                        id="supplemental-wordlimit"
+                                        type="text"
+                                        className="form-input"
+                                        value={formData.wordLimit}
+                                        onChange={handleChange('wordLimit')}
+                                        placeholder="e.g., 150"
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="supplemental-prompt">Prompt</label>
+                                <textarea
+                                    id="supplemental-prompt"
+                                    className="form-input"
+                                    rows={4}
+                                    value={formData.prompt}
+                                    onChange={handleChange('prompt')}
+                                    placeholder="Paste the question prompt here"
+                                    required
+                                />
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" className="btn btn-secondary" onClick={() => setIsAddModalOpen(false)}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                                    {isSubmitting ? 'Saving...' : 'Save Prompt'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isOverviewOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-content supplemental-modal-content">
+                        <button className="modal-close-btn" onClick={() => setIsOverviewOpen(false)}>&times;</button>
+                        <h4>Colleges on your list</h4>
+                        {(!overview || overview.length === 0) ? (
+                            <p className="supplementals-empty">No colleges available yet. Generate your college list first.</p>
+                        ) : (
+                            <ul className="modal-overview-list">
+                                {overview.map((item, index) => (
+                                    <li key={`${item.school || 'school'}-${index}`}>
+                                        <strong>{item.school}</strong>
+                                        <span>{item.supplementalCount} prompt{item.supplementalCount === 1 ? '' : 's'} added</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -1085,3 +1085,51 @@ textarea.form-input {
 }
 
 
+
+.supplementals-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.supplemental-modal-content {
+  width: min(90%, 520px);
+  max-width: 520px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modal-overview-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-overview-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--container-bg);
+  padding: 14px 18px;
+  border-radius: 12px;
+  color: var(--text-secondary);
+}
+
+.modal-overview-list li strong {
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
