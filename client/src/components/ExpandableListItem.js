@@ -6,9 +6,17 @@ const ExpandableListItem = ({ item, index }) => {
 
     return (
         <div className="expandable-item">
-            <button className="expandable-header" onClick={() => setIsOpen(!isOpen)}>
-                <span>{index + 1}. {item.title}</span>
-                <span className={`arrow ${isOpen ? 'open' : ''}`}>^</span>
+            <button
+                type="button"
+                className="expandable-header"
+                onClick={() => setIsOpen((prev) => !prev)}
+                aria-expanded={isOpen}
+            >
+                <span className="expandable-title">{index + 1}. {item.title}</span>
+                <span
+                    className={`expandable-toggle ${isOpen ? 'open' : ''}`}
+                    aria-hidden="true"
+                />
             </button>
             {isOpen && (
                 <div className="expandable-content">
