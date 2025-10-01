@@ -12,6 +12,7 @@ const StrengthsImprovementsPage = () => {
     const [strengths, setStrengths] = useState([]);
     const [improvements, setImprovements] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const loadData = useCallback(async () => {
         if (!userId) return;
@@ -43,12 +44,39 @@ const StrengthsImprovementsPage = () => {
         loadData();
     }, [loadData]);
 
+
+    const regenerateInsights = async () => {
+        if (!userId) return;
+        setIsRefreshing(true);
+        try {
+            const [latestStrengths, latestImprovements] = await Promise.all([
+                apiService(`/profile/${userId}/analyze/strengths`, 'POST'),
+                apiService(`/profile/${userId}/analyze/improvements`, 'POST')
+            ]);
+            setStrengths(latestStrengths);
+            setImprovements(latestImprovements);
+        } catch (error) {
+            console.error('Failed to regenerate insights:', error);
+            alert(`Could not regenerate insights: ${error.message}`);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
     return (
         <div className="report-page-container">
             <div className="main-content">
                 <div className="profile-header">
                     <button className="back-btn" onClick={() => navigate('/account')}>&larr; My Account</button>
-                    <h1>Strengths & Improvements</h1>
+                    <div className="header-actions">
+                        <h1>Strengths & Improvements</h1>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={regenerateInsights}
+                            disabled={isLoading || isRefreshing}
+                        >
+                            {isRefreshing ? 'Regenerating...' : 'Regenerate insights'}
+                        </button>
+                    </div>
                 </div>
 
                 {isLoading ? (
