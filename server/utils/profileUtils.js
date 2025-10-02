@@ -1,5 +1,7 @@
 // backend/utils/profileUtils.js
 const { callDifyWorkflow } = require('../difyService');
+const config = require('../config');
+const { dify } = config;
 
 const ALL_QUESTIONS = {
   priorities: [
@@ -90,8 +92,8 @@ const generateProfileSummary = async (profile) => {
     };
 
     const aiData = await callDifyWorkflow(
-      process.env.DIFY_WORKFLOW_URL,
-      process.env.PROFILE_SUMMARY_KEY,
+      dify.workflowUrl,
+      dify.keys.profileSummary,
       difyBody
     );
 

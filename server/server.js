@@ -6,15 +6,27 @@ const bcrypt = require('bcrypt');
 const { callDifyWorkflow } = require('./difyService');
 const { generateProfileSummary, ALL_QUESTIONS, COMMON_APP_PROMPTS, UC_PROMPTS } = require('./utils/profileUtils');
 const ChatSession = require('./models/ChatSession');
-require('dotenv').config();
+const config = require('./config');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const { port: PORT, host, cors: corsConfig, database, dify } = config;
 
-app.use(cors());
+app.locals.config = config;
+
+const allowedOrigins = corsConfig.allowedOrigins;
+const corsOptions = {
+  origin: allowedOrigins.includes('*') ? true : allowedOrigins,
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URI)
+if (!database.uri) {
+  throw new Error('Missing MongoDB connection string. Set MONGO_URI in your environment configuration.');
+}
+
+mongoose.connect(database.uri)
   .then(() => console.log('Successfully connected to MongoDB Atlas!'))
   .catch(err => console.error('MongoDB connection error:', err));
 
@@ -115,8 +127,8 @@ const generateWhyReasons = async (profileSummary, schoolName, userId) => {
   };
 
   const aiData = await callDifyWorkflow(
-      process.env.DIFY_WORKFLOW_URL,
-      process.env.COLLEGE_WHY_KEY,
+      dify.workflowUrl,
+      dify.keys.collegeWhy,
       difyBody
   );
   return JSON.parse(aiData.data.outputs.reasoning).reasons || [];
@@ -191,7 +203,7 @@ const generateAiInsight = async (profile, apiKey, outputKey) => {
   };
 
   const aiData = await callDifyWorkflow(
-    process.env.DIFY_WORKFLOW_URL,
+    dify.workflowUrl,
     apiKey,
     difyBody
   );
@@ -432,14 +444,14 @@ app.post('/api/colleges/generate', async (req, res) => {
             "profile": profileSummary 
         },
         response_mode: 'blocking',
-        user: process.env.DIFY_USER // Using the user ID from your .env for Dify logs
+        user: dify.user // Using the configured Dify user ID for Dify logs
     };
 
     // 5. Call the Dify service for the college list
     console.log('[INFO] Sending request to Dify workflow for college list...');
     const aiData = await callDifyWorkflow(
-        process.env.DIFY_WORKFLOW_URL,
-        process.env.COLLEGE_LIST_KEY, // The API key specific to your college list workflow
+        dify.workflowUrl,
+        dify.keys.collegeList, // The API key specific to your college list workflow
         difyBody
     );
     console.log('[SUCCESS] Received response from Dify.');
@@ -507,8 +519,8 @@ app.post('/api/strategies/generate', async (req, res) => {
 
     // 3. Call the Dify workflow using the specific API key for strategies.
     const aiData = await callDifyWorkflow(
-      process.env.DIFY_WORKFLOW_URL,
-      process.env.STRATEGIES_KEY,
+      dify.workflowUrl,
+      dify.keys.strategies,
       difyBody
     );
     
@@ -537,7 +549,7 @@ app.post('/api/profile/:userId/analyze/strengths', async (req, res) => {
         const profile = await Profile.findOne({ userId });
         if (!profile) return res.status(404).json({ message: 'Profile not found' });
         
-        const strengths = await generateAiInsight(profile, process.env.PROFILE_STRENGTHS_KEY, 'strengths');
+        const strengths = await generateAiInsight(profile, dify.keys.profileStrengths, 'strengths');
         
         // Save the text of the strengths to the profile for future reference
         profile.discovered.strengths = strengths;
@@ -558,7 +570,7 @@ app.post('/api/profile/:userId/analyze/improvements', async (req, res) => {
     const profile = await Profile.findOne({ userId });
     if (!profile) return res.status(404).json({ message: 'Profile not found' });
 
-    const improvements = await generateAiInsight(profile, process.env.PROFILE_IMPROVEMENTS_KEY, 'improvements');
+    const improvements = await generateAiInsight(profile, dify.keys.profileImprovements, 'improvements');
     
      profile.discovered.improvements = improvements;
      profile.markModified('discovered');
@@ -652,8 +664,8 @@ app.get('/api/profile/:userId/schedule', async (req, res) => {
     };
 
     const aiData = await callDifyWorkflow(
-      process.env.DIFY_WORKFLOW_URL,
-      process.env.SCHEDULE_GENERATION_KEY,
+      dify.workflowUrl,
+      dify.keys.scheduleGeneration,
       difyBody
     );
 
@@ -779,8 +791,8 @@ app.post('/api/profile/:userId/activities/improve', async (req, res) => {
     };
 
     const aiData = await callDifyWorkflow(
-      process.env.DIFY_WORKFLOW_URL,
-      process.env.ACTIVITIES_IMPROVER_KEY,
+      dify.workflowUrl,
+      dify.keys.activitiesImprover,
       difyBody
     );
 
@@ -857,8 +869,8 @@ app.post('/api/chat/message', async (req, res) => {
     };
 
     const aiData = await callDifyWorkflow(
-      process.env.DIFY_CHATFLOW_URL,
-      process.env.COUNSELOR_KEY,
+      dify.chatflowUrl,
+      dify.keys.counselor,
       difyBody
     );
 
@@ -961,8 +973,8 @@ app.post('/api/profile/:userId/essays/brainstorm', async (req, res) => {
 
         // Make sure to add DIFY_ESSAY_BRAINSTORM_KEY to your .env file
         const aiData = await callDifyWorkflow(
-            process.env.DIFY_WORKFLOW_URL,
-            process.env.ESSAY_BRAINSTORM_KEY,
+            dify.workflowUrl,
+            dify.keys.essayBrainstorm,
             difyBody
         );
         
@@ -1239,6 +1251,7 @@ app.post('/api/colleges/why', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend server is running on http://localhost:${PORT}`);
+app.listen(PORT, host, () => {
+  console.log(`Backend server is running on ${config.backend.url}`);
 });
+
