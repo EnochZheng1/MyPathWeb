@@ -1,5 +1,7 @@
 // client/src/api.js
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+import AppConfig from './config/appConfig';
+
+const API_BASE_URL = AppConfig.backend.apiBaseUrl;
 
 const apiService = async (endpoint, method = 'GET', body = null) => {
     try {
@@ -11,7 +13,7 @@ const apiService = async (endpoint, method = 'GET', body = null) => {
             options.body = JSON.stringify(body);
         }
 
-        const response = await fetch(`${API_URL}${endpoint}`, options);
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
         let data = null;
         const contentType = response.headers.get('content-type');
 

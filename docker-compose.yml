@@ -1,0 +1,28 @@
+# docker-compose.yml
+services:
+  server:
+    image: mypath-backend:main_0.0.0.0
+    build: ./server
+    env_file:
+      - server/.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      ALLOWED_ORIGINS: http://localhost:8080
+    ports:
+      - "3001:3001"
+  client:
+    image: mypath-frontend:main_0.0.0.0
+    build:
+      context: ./client
+      args:
+        OUT_DIR: build
+        REACT_APP_ENVIRONMENT: production
+        REACT_APP_FRONTEND_URL: http://localhost:8080
+        REACT_APP_API_BASE_URL: http://localhost:3001
+        REACT_APP_API_PATH: /api
+    ports:
+      - "8080:80"
+    depends_on:
+      - server

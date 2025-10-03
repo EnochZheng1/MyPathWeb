@@ -1200,12 +1200,13 @@ textarea.form-input {
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
 }
 
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 16px;
+}
+
 .modal-overview-list {
   list-style: none;
   padding: 0;

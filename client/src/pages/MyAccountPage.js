@@ -237,9 +237,9 @@ const MyAccountPage = () => {
                     </div>
                     <div className="right-panel">
                         {/* 4. Use the onClick event to call the navigation handlers */}
-                        <button className="report-btn" onClick={goToCollegeList}>College list & Application strategy</button>
+                        <button className="report-btn" onClick={goToCollegeList}>College List & Application Strategy</button>
                         <button className="report-btn" onClick={goToStrengths}>Strengths & Improvements</button>
-                        <button className="report-btn" onClick={goToEssays}>Essay & Activities list</button>
+                        <button className="report-btn" onClick={goToEssays}>Essay & Activities List</button>
                     </div>
                 </div>
             </div>
