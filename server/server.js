@@ -219,6 +219,12 @@ const generateAiInsight = async (profile, apiKey, outputKey) => {
 
 // --- API Routes ---
 
+// Test function
+app.get('/api/test', (req, res) => {
+  console.log('✅ SUCCESS: The /api/test route was reached!');
+  res.status(200).json({ message: 'Test route is working correctly!' });
+});
+
 // User creation route
 app.post('/api/users/create', async (req, res) => {
   console.log('--- Received request to POST /api/users/create ---');
@@ -292,7 +298,7 @@ app.post('/api/users/signin', async (req, res) => {
 });
 
 // Admin password reset route
-app.post('/api/admin/users/:userId/reset-password', async (req, res) => {
+app.post('/api/admin/user/:userId/reset-password', async (req, res) => {
   const { userId } = req.params;
   const { newPassword } = req.body || {};
   const providedKey = req.headers['x-admin-secret'] || req.headers['x-admin-key'] || req.body?.adminSecret;
