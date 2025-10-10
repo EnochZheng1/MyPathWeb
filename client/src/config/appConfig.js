@@ -1,4 +1,4 @@
-﻿// client/src/config/appConfig.js
+// client/src/config/appConfig.js
 const resolveDefaultFrontendUrl = () => {
     if (typeof window !== 'undefined' && window.location) {
         return window.location.origin;
@@ -24,10 +24,11 @@ const normalizePath = (value, fallback) => {
 };
 
 const environment = process.env.REACT_APP_ENVIRONMENT || process.env.NODE_ENV || 'development';
+const isProduction = environment === 'production';
 const frontendUrl = process.env.REACT_APP_FRONTEND_URL || resolveDefaultFrontendUrl();
 
-const fallbackBackendBase = 'http://localhost:3001';
-const fallbackApiPath = '/api';
+const fallbackBackendBase = isProduction ? 'https://mypath.helport.ai' : 'http://localhost:3001';
+const fallbackApiPath = isProduction ? '' : '/api';
 const rawBaseOverride = process.env.REACT_APP_API_BASE_URL;
 const rawLegacyUrl = process.env.REACT_APP_API_URL;
 const rawPathOverride = process.env.REACT_APP_API_PATH;

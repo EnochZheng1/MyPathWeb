@@ -9,7 +9,7 @@ const ChatSession = require('./models/ChatSession');
 const config = require('./config');
 
 const app = express();
-const { port: PORT, host, cors: corsConfig, database, dify } = config;
+const { port: PORT, host, cors: corsConfig, database, dify, admin } = config;
 
 app.locals.config = config;
 
@@ -288,6 +288,47 @@ app.post('/api/users/signin', async (req, res) => {
   } catch (error) {
     console.error('[ERROR] Server error during sign in:', error);
     res.status(500).json({ message: 'Server error during sign in.', error });
+  }
+});
+
+// Admin password reset route
+app.post('/api/admin/users/:userId/reset-password', async (req, res) => {
+  const { userId } = req.params;
+  const { newPassword } = req.body || {};
+  const providedKey = req.headers['x-admin-secret'] || req.headers['x-admin-key'] || req.body?.adminSecret;
+
+  if (!admin || !admin.apiKey) {
+    console.warn('[WARN] Admin password reset attempted but ADMIN_API_KEY is not configured.');
+    return res.status(503).json({ message: 'Admin password reset is not configured.' });
+  }
+
+  if (!providedKey || providedKey !== admin.apiKey) {
+    console.log(`[FAIL] Unauthorized admin password reset attempt for userId: ${userId}`);
+    return res.status(403).json({ message: 'Unauthorized.' });
+  }
+
+  if (!newPassword || typeof newPassword !== 'string' || !newPassword.trim()) {
+    return res.status(400).json({ message: 'A non-empty newPassword value is required.' });
+  }
+
+  try {
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      console.log(`[FAIL] Admin password reset failed. User not found: ${userId}`);
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword.trim(), salt);
+
+    profile.password = hashedPassword;
+    await profile.save();
+
+    console.log(`[SUCCESS] Admin reset password for userId: ${userId}`);
+    res.status(200).json({ message: 'Password reset successfully.' });
+  } catch (error) {
+    console.error(`[ERROR] Admin password reset failed for userId: ${userId}`, error);
+    res.status(500).json({ message: 'Server error while resetting password.', error: error.message });
   }
 });
 

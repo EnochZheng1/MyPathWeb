@@ -85,6 +85,9 @@ const config = {
       counselor: process.env.COUNSELOR_KEY || '',
     },
   },
+  admin: {
+    apiKey: process.env.ADMIN_API_KEY || '',
+  },
 };
 
 module.exports = Object.freeze(config);
